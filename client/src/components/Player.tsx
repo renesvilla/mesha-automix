@@ -1,5 +1,5 @@
 import { useAutomixStore } from '@/store/automixStore';
-import { Play, Pause, SkipForward, Download } from 'lucide-react';
+import { Play, Pause, SkipForward, SkipBack, Download, Repeat, Repeat1, Shuffle } from 'lucide-react';
 import { useEffect, useState, useRef } from 'react';
 import { AudioPlayer, renderMixToAudioBuffer } from '@/lib/audioUtils';
 import { exportAudioBuffer } from '@/lib/mp3Encoder';
@@ -12,8 +12,14 @@ export default function Player() {
     isPlaying,
     currentTime,
     totalDuration,
+    currentTrackIndex,
+    repeatMode,
+    isShuffle,
     setIsPlaying,
     setCurrentTime,
+    setCurrentTrackIndex,
+    setRepeatMode,
+    setShuffle,
   } = useAutomixStore();
 
   const [audioPlayer, setAudioPlayer] = useState<AudioPlayer | null>(null);
@@ -40,8 +46,22 @@ export default function Player() {
         setCurrentTime(time);
 
         if (time >= totalDuration) {
-          setIsPlaying(false);
-          audioPlayer.stop();
+          // Lógica de repeat
+          if (repeatMode === 'one') {
+            setCurrentTime(0);
+            audioPlayer.stop();
+            // Reinicia a reprodução
+            handlePlayPause();
+          } else if (repeatMode === 'all') {
+            setCurrentTime(0);
+            setCurrentTrackIndex(0);
+            audioPlayer.stop();
+            // Reinicia do começo
+            handlePlayPause();
+          } else {
+            setIsPlaying(false);
+            audioPlayer.stop();
+          }
         }
       }, 100);
 
@@ -51,7 +71,7 @@ export default function Player() {
         }
       };
     }
-  }, [isPlaying, audioPlayer, totalDuration, setIsPlaying, setCurrentTime]);
+  }, [isPlaying, audioPlayer, totalDuration, repeatMode, setIsPlaying, setCurrentTime, setCurrentTrackIndex]);
 
   const handlePlayPause = async () => {
     if (!audioPlayer || tracks.length === 0 || !allTracksLoaded) return;
@@ -82,11 +102,35 @@ export default function Player() {
     }
   };
 
-  const handleSkip = () => {
-    if (!audioPlayer) return;
-    audioPlayer.stop();
-    setCurrentTime(0);
-    setIsPlaying(false);
+  const handlePrevious = () => {
+    if (currentTrackIndex > 0) {
+      setCurrentTrackIndex(currentTrackIndex - 1);
+      setCurrentTime(0);
+    } else if (repeatMode === 'all') {
+      setCurrentTrackIndex(tracks.length - 1);
+      setCurrentTime(0);
+    }
+  };
+
+  const handleNext = () => {
+    if (currentTrackIndex < tracks.length - 1) {
+      setCurrentTrackIndex(currentTrackIndex + 1);
+      setCurrentTime(0);
+    } else if (repeatMode === 'all') {
+      setCurrentTrackIndex(0);
+      setCurrentTime(0);
+    }
+  };
+
+  const handleRepeat = () => {
+    const modes: Array<'off' | 'all' | 'one'> = ['off', 'all', 'one'];
+    const currentIndex = modes.indexOf(repeatMode);
+    const nextMode = modes[(currentIndex + 1) % modes.length];
+    setRepeatMode(nextMode);
+  };
+
+  const handleShuffle = () => {
+    setShuffle(!isShuffle);
   };
 
   const handleExport = async () => {
@@ -171,8 +215,17 @@ export default function Player() {
         </div>
       </div>
 
-      {/* Controls */}
-      <div className="flex items-center justify-center gap-4">
+      {/* Main Controls */}
+      <div className="flex items-center justify-center gap-3">
+        <button
+          onClick={handlePrevious}
+          disabled={tracks.length === 0 || isExporting}
+          className="p-2 rounded-lg border border-border hover:border-cyan-400/50 text-foreground hover:bg-card transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Faixa anterior"
+        >
+          <SkipBack size={20} />
+        </button>
+
         <button
           onClick={handlePlayPause}
           disabled={tracks.length === 0 || !allTracksLoaded || isExporting}
@@ -183,21 +236,55 @@ export default function Player() {
         </button>
 
         <button
-          onClick={handleSkip}
+          onClick={handleNext}
           disabled={tracks.length === 0 || isExporting}
-          className="p-3 rounded-lg border border-border hover:border-cyan-400/50 text-foreground hover:bg-card transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          title="Pular"
+          className="p-2 rounded-lg border border-border hover:border-cyan-400/50 text-foreground hover:bg-card transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Próxima faixa"
         >
           <SkipForward size={20} />
+        </button>
+      </div>
+
+      {/* Secondary Controls */}
+      <div className="flex items-center justify-center gap-2">
+        <button
+          onClick={handleRepeat}
+          disabled={tracks.length === 0 || isExporting}
+          className={`p-2 rounded-lg border transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+            repeatMode === 'off'
+              ? 'border-border hover:border-cyan-400/50 text-foreground hover:bg-card'
+              : 'border-cyan-400 bg-cyan-400/10 text-cyan-400'
+          }`}
+          title={`Repeat: ${repeatMode}`}
+        >
+          {repeatMode === 'one' ? <Repeat1 size={18} /> : <Repeat size={18} />}
+        </button>
+
+        <button
+          onClick={handleShuffle}
+          disabled={tracks.length === 0 || isExporting}
+          className={`p-2 rounded-lg border transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+            isShuffle
+              ? 'border-magenta-500 bg-magenta-500/10 text-magenta-500'
+              : 'border-border hover:border-cyan-400/50 text-foreground hover:bg-card'
+          }`}
+          style={
+            isShuffle
+              ? { borderColor: '#ff00ff', backgroundColor: 'rgba(255, 0, 255, 0.1)', color: '#ff00ff' }
+              : undefined
+          }
+          title="Shuffle"
+        >
+          <Shuffle size={18} />
         </button>
 
         <button
           onClick={handleExport}
           disabled={tracks.length === 0 || !allTracksLoaded || isExporting}
-          className="p-3 rounded-lg border border-border hover:border-magenta-500/50 text-foreground hover:bg-card transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          className="p-2 rounded-lg border border-border hover:border-magenta-500/50 text-foreground hover:bg-card transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 ml-auto"
           title="Exportar como MP3/WAV"
         >
-          <Download size={20} />
+          <Download size={18} />
           {isExporting && <span className="text-xs">{exportProgress}%</span>}
         </button>
       </div>
@@ -210,7 +297,8 @@ export default function Player() {
           <p>Carregando faixas...</p>
         ) : (
           <p>
-            {tracks.length} faixa{tracks.length !== 1 ? 's' : ''} pronta{tracks.length !== 1 ? 's' : ''}
+            {tracks.length} faixa{tracks.length !== 1 ? 's' : ''} pronta{tracks.length !== 1 ? 's' : ''} |
+            Faixa {currentTrackIndex + 1} de {tracks.length}
           </p>
         )}
       </div>

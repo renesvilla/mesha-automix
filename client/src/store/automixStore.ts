@@ -16,6 +16,9 @@ export interface AutomixState {
   isPlaying: boolean;
   currentTime: number;
   totalDuration: number;
+  currentTrackIndex: number;
+  repeatMode: 'off' | 'all' | 'one';
+  isShuffle: boolean;
 
   // Track management
   addTracks: (files: File[]) => void;
@@ -32,6 +35,9 @@ export interface AutomixState {
   setIsPlaying: (value: boolean) => void;
   setCurrentTime: (value: number) => void;
   updateTotalDuration: () => void;
+  setCurrentTrackIndex: (index: number) => void;
+  setRepeatMode: (mode: 'off' | 'all' | 'one') => void;
+  setShuffle: (value: boolean) => void;
 }
 
 const generateId = () => Math.random().toString(36).substring(2, 11);
@@ -43,6 +49,9 @@ export const useAutomixStore = create<AutomixState>((set, get) => ({
   isPlaying: false,
   currentTime: 0,
   totalDuration: 0,
+  currentTrackIndex: 0,
+  repeatMode: 'off',
+  isShuffle: false,
 
   addTracks: (files: File[]) => {
     const newTracks: Track[] = files.map((file) => ({
@@ -68,7 +77,7 @@ export const useAutomixStore = create<AutomixState>((set, get) => ({
   },
 
   clearTracks: () => {
-    set({ tracks: [], currentTime: 0 });
+    set({ tracks: [], currentTime: 0, currentTrackIndex: 0 });
     get().updateTotalDuration();
   },
 
@@ -114,5 +123,17 @@ export const useAutomixStore = create<AutomixState>((set, get) => ({
     const trackDuration = state.endPoint - state.startTrim;
     const totalDuration = trackDuration * state.tracks.length;
     set({ totalDuration: Math.max(0, totalDuration) });
+  },
+
+  setCurrentTrackIndex: (index: number) => {
+    set({ currentTrackIndex: Math.max(0, Math.min(index, get().tracks.length - 1)) });
+  },
+
+  setRepeatMode: (mode: 'off' | 'all' | 'one') => {
+    set({ repeatMode: mode });
+  },
+
+  setShuffle: (value: boolean) => {
+    set({ isShuffle: value });
   },
 }));

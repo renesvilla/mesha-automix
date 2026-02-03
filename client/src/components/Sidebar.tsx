@@ -41,7 +41,11 @@ export default function Sidebar() {
       <div className="p-6 border-b border-sidebar-border">
         <button
           onClick={handleUploadClick}
-          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-neon rounded-lg text-sidebar-primary-foreground font-semibold hover:shadow-lg transition-all duration-200 glow-cyan-hover"
+          className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold hover:shadow-lg transition-all duration-200"
+          style={{
+            background: 'linear-gradient(135deg, #00d9ff 0%, #ff00ff 100%)',
+            color: '#0a0e27',
+          }}
         >
           <Upload size={18} />
           Upload Áudio
@@ -65,11 +69,12 @@ export default function Sidebar() {
           <input
             type="range"
             min="0"
-            max={Math.max(endPoint - 1, 0)}
+            max="300"
             step="0.5"
             value={startTrim}
             onChange={(e) => setStartTrim(parseFloat(e.target.value))}
-            className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-cyan-400"
+            className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer"
+            style={{ accentColor: '#00d9ff' }}
           />
           <div className="text-xs text-muted-foreground mt-2 text-right">
             {startTrim.toFixed(1)}s
@@ -82,12 +87,13 @@ export default function Sidebar() {
           </label>
           <input
             type="range"
-            min={Math.max(startTrim + 1, 1)}
+            min="0"
             max="300"
             step="0.5"
             value={endPoint}
             onChange={(e) => setEndPoint(parseFloat(e.target.value))}
-            className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-magenta-500"
+            className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer"
+            style={{ accentColor: '#ff00ff' }}
           />
           <div className="text-xs text-muted-foreground mt-2 text-right">
             {endPoint.toFixed(1)}s
