@@ -1,5 +1,5 @@
 import { useAutomixStore } from '@/store/automixStore';
-import { Upload, Trash2, Settings } from 'lucide-react';
+import { Upload, Trash2, Settings, Music, Sliders, Zap } from 'lucide-react';
 import { useRef } from 'react';
 
 export default function Sidebar() {
@@ -29,26 +29,73 @@ export default function Sidebar() {
     fileInputRef.current?.click();
   };
 
+  const trackDuration = endPoint - startTrim;
+  const totalPlaylistDuration = trackDuration * tracks.length;
+
   return (
-    <aside className="w-80 bg-sidebar border-r border-sidebar-border flex flex-col h-screen">
+    <aside className="w-64 bg-sidebar border-r border-sidebar-border flex flex-col h-screen overflow-y-auto">
       {/* Header */}
-      <div className="p-6 border-b border-sidebar-border">
-        <h1 className="text-2xl font-bold text-glow-cyan mb-2">MÉSHA</h1>
-        <p className="text-xs text-muted-foreground">Automix Engine</p>
+      <div className="p-6 border-b border-sidebar-border space-y-2">
+        <div className="flex items-center gap-2">
+          <Zap size={24} className="text-glow-cyan" />
+          <h1 className="text-xl font-bold text-glow-cyan">MÉSHA</h1>
+        </div>
+        <p className="text-xs text-muted-foreground">Automix Studio</p>
+        <p className="text-xs text-muted-foreground">Dark charcoal • Cyan & Magenta</p>
       </div>
 
+      {/* Workspace Info */}
+      <div className="p-4 border-b border-sidebar-border space-y-3">
+        <div className="border-dashed-green p-3 rounded">
+          <p className="text-xs text-muted-foreground mb-1">Workspace</p>
+          <p className="text-sm font-semibold text-glow-cyan">Salon Mixroom</p>
+          <p className="text-xs text-muted-foreground mt-1">v1</p>
+        </div>
+        <div className="flex gap-2 text-xs">
+          <span className="text-muted-foreground">Mode:</span>
+          <span className="text-glow-cyan font-semibold">Automix</span>
+        </div>
+        <div className="flex gap-2 text-xs">
+          <span className="text-muted-foreground">Engine:</span>
+          <span className="text-glow-magenta font-semibold">Web Audio</span>
+        </div>
+      </div>
+
+      {/* Navigation Menu */}
+      <nav className="p-4 border-b border-sidebar-border space-y-2">
+        <div className="border-dashed-green p-3 rounded space-y-2">
+          <div className="flex items-center gap-2 text-glow-cyan">
+            <Music size={16} />
+            <span className="text-sm font-semibold">Studio</span>
+            <span className="status-active w-2 h-2 rounded-full ml-auto"></span>
+          </div>
+          <div className="flex items-center gap-2 text-foreground hover:text-glow-cyan transition-colors cursor-pointer">
+            <Music size={16} />
+            <span className="text-sm">Tracks</span>
+          </div>
+          <div className="flex items-center gap-2 text-foreground hover:text-glow-cyan transition-colors cursor-pointer">
+            <Sliders size={16} />
+            <span className="text-sm">Presets</span>
+          </div>
+          <div className="flex items-center gap-2 text-foreground hover:text-glow-cyan transition-colors cursor-pointer">
+            <Settings size={16} />
+            <span className="text-sm">Mix Settings</span>
+          </div>
+        </div>
+      </nav>
+
       {/* Upload Section */}
-      <div className="p-6 border-b border-sidebar-border">
+      <div className="p-4 border-b border-sidebar-border">
         <button
           onClick={handleUploadClick}
-          className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold hover:shadow-lg transition-all duration-200"
+          className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded font-semibold hover:shadow-lg transition-all"
           style={{
             background: 'linear-gradient(135deg, #00d9ff 0%, #ff00ff 100%)',
-            color: '#0a0e27',
+            color: '#0a0a0a',
           }}
         >
           <Upload size={18} />
-          Upload Áudio
+          Add tracks
         </button>
         <input
           ref={fileInputRef}
@@ -60,11 +107,34 @@ export default function Sidebar() {
         />
       </div>
 
+      {/* Stats Section */}
+      <div className="p-4 border-b border-sidebar-border space-y-3">
+        <div className="bg-card border border-border rounded p-3">
+          <p className="text-xs text-muted-foreground mb-1">Tracks</p>
+          <p className="text-2xl font-bold text-glow-cyan">{tracks.length}</p>
+        </div>
+        <div className="bg-card border border-border rounded p-3">
+          <p className="text-xs text-muted-foreground mb-1">Decoded locally</p>
+          <p className="text-sm text-glow-magenta font-semibold">
+            {tracks.filter((t) => t.isLoaded).length}/{tracks.length}
+          </p>
+        </div>
+        <div className="bg-card border border-border rounded p-3">
+          <p className="text-xs text-muted-foreground mb-1">Total mix length</p>
+          <p className="text-lg font-bold text-glow-green">{totalPlaylistDuration.toFixed(1)}s</p>
+        </div>
+      </div>
+
       {/* Timeline Controls */}
-      <div className="p-6 border-b border-sidebar-border space-y-6">
+      <div className="p-4 border-b border-sidebar-border space-y-4 flex-1">
+        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <Sliders size={16} className="text-glow-cyan" />
+          Timeline
+        </h3>
+
         <div>
-          <label className="block text-sm font-semibold text-foreground mb-3">
-            Start Trim (s)
+          <label className="block text-xs font-semibold text-foreground mb-2">
+            Start Trim
           </label>
           <input
             type="range"
@@ -73,17 +143,20 @@ export default function Sidebar() {
             step="0.5"
             value={startTrim}
             onChange={(e) => setStartTrim(parseFloat(e.target.value))}
-            className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer"
+            className="w-full"
             style={{ accentColor: '#00d9ff' }}
           />
-          <div className="text-xs text-muted-foreground mt-2 text-right">
+          <div className="text-xs text-muted-foreground mt-1">
             {startTrim.toFixed(1)}s
           </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            Start a little late to skip intros if needed.
+          </p>
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-foreground mb-3">
-            End/Automix Point (s)
+          <label className="block text-xs font-semibold text-foreground mb-2">
+            End / Automix Point
           </label>
           <input
             type="range"
@@ -92,53 +165,41 @@ export default function Sidebar() {
             step="0.5"
             value={endPoint}
             onChange={(e) => setEndPoint(parseFloat(e.target.value))}
-            className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer"
+            className="w-full"
             style={{ accentColor: '#ff00ff' }}
           />
-          <div className="text-xs text-muted-foreground mt-2 text-right">
+          <div className="text-xs text-muted-foreground mt-1">
             {endPoint.toFixed(1)}s
           </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            Where each track begins its transition.
+          </p>
         </div>
 
-        <div className="bg-card rounded-lg p-3 border border-border">
-          <p className="text-xs text-muted-foreground">Duração por faixa</p>
-          <p className="text-lg font-bold text-glow-cyan">
-            {(endPoint - startTrim).toFixed(1)}s
+        <div className="bg-card border border-border rounded p-3">
+          <p className="text-xs text-muted-foreground mb-1">Crossfade Duration</p>
+          <p className="text-sm font-semibold text-glow-cyan">5.0s</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Equal-power blend for smooth salon energy.
           </p>
         </div>
       </div>
 
-      {/* Track Count */}
-      <div className="p-6 border-b border-sidebar-border">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs text-muted-foreground">Faixas carregadas</p>
-            <p className="text-2xl font-bold text-glow-magenta">{tracks.length}</p>
-          </div>
-          {tracks.length > 0 && (
-            <button
-              onClick={clearTracks}
-              className="p-2 hover:bg-destructive/20 rounded-lg transition-colors text-destructive"
-              title="Limpar todas as faixas"
-            >
-              <Trash2 size={20} />
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Info Section */}
-      <div className="p-6 mt-auto border-t border-sidebar-border space-y-3 text-xs text-muted-foreground">
-        <div className="flex items-start gap-2">
-          <Settings size={16} className="mt-0.5 flex-shrink-0" />
-          <p>
-            Crossfade automático de <span className="text-cyan-400">5 segundos</span> entre faixas.
-          </p>
-        </div>
-        <div className="bg-card rounded p-2 border border-border">
-          <p className="font-semibold text-foreground mb-1">Dica:</p>
-          <p>Ajuste os sliders para controlar o ponto de início e fim de cada faixa.</p>
-        </div>
+      {/* Footer Actions */}
+      <div className="p-4 border-t border-sidebar-border space-y-2">
+        {tracks.length > 0 && (
+          <button
+            onClick={clearTracks}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded text-sm text-destructive border border-destructive/30 hover:bg-destructive/10 transition-colors"
+          >
+            <Trash2 size={16} />
+            Clear all
+          </button>
+        )}
+        <button className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded text-sm bg-card border border-border text-foreground hover:border-glow-cyan transition-colors">
+          <Settings size={16} />
+          Settings
+        </button>
       </div>
     </aside>
   );

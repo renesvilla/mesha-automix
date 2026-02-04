@@ -1,5 +1,16 @@
 import { useAutomixStore } from '@/store/automixStore';
-import { Play, Pause, SkipForward, SkipBack, Download, Repeat, Repeat1, Shuffle } from 'lucide-react';
+import {
+  Play,
+  Pause,
+  SkipForward,
+  SkipBack,
+  Download,
+  Repeat,
+  Repeat1,
+  Shuffle,
+  Volume2,
+  Music,
+} from 'lucide-react';
 import { useEffect, useState, useRef } from 'react';
 import { AudioPlayer, renderMixToAudioBuffer } from '@/lib/audioUtils';
 import { exportAudioBuffer } from '@/lib/mp3Encoder';
@@ -25,7 +36,10 @@ export default function Player() {
   const [audioPlayer, setAudioPlayer] = useState<AudioPlayer | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
+  const [volume, setVolume] = useState(1);
+  const [isUpdating, setIsUpdating] = useState(false);
   const playbackIntervalRef = useRef<number | null>(null);
+  const updateTimeoutRef = useRef<number | null>(null);
 
   const allTracksLoaded = tracks.every((t) => t.isLoaded && t.audioBuffer);
 
@@ -33,10 +47,29 @@ export default function Player() {
   useEffect(() => {
     const player = new AudioPlayer();
     setAudioPlayer(player);
+    player.setVolume(volume);
     return () => {
       player.stop();
     };
   }, []);
+
+  // Atualiza volume
+  useEffect(() => {
+    if (audioPlayer) {
+      audioPlayer.setVolume(volume);
+    }
+  }, [volume, audioPlayer]);
+
+  // Detecta mudanças nos parâmetros e mostra mensagem de atualização
+  useEffect(() => {
+    if (isPlaying) {
+      setIsUpdating(true);
+      if (updateTimeoutRef.current) clearTimeout(updateTimeoutRef.current);
+      updateTimeoutRef.current = window.setTimeout(() => {
+        setIsUpdating(false);
+      }, 1000);
+    }
+  }, [startTrim, endPoint]);
 
   // Atualiza tempo de playback
   useEffect(() => {
@@ -46,17 +79,14 @@ export default function Player() {
         setCurrentTime(time);
 
         if (time >= totalDuration) {
-          // Lógica de repeat
           if (repeatMode === 'one') {
             setCurrentTime(0);
             audioPlayer.stop();
-            // Reinicia a reprodução
             handlePlayPause();
           } else if (repeatMode === 'all') {
             setCurrentTime(0);
             setCurrentTrackIndex(0);
             audioPlayer.stop();
-            // Reinicia do começo
             handlePlayPause();
           } else {
             setIsPlaying(false);
@@ -80,18 +110,12 @@ export default function Player() {
       audioPlayer.pause();
       setIsPlaying(false);
     } else {
-      // Renderiza o mix
       try {
         const audioBuffers = tracks
           .map((t) => t.audioBuffer)
           .filter((b) => b !== undefined) as AudioBuffer[];
 
-        const mixBuffer = await renderMixToAudioBuffer(
-          audioBuffers,
-          startTrim,
-          endPoint,
-          5
-        );
+        const mixBuffer = await renderMixToAudioBuffer(audioBuffers, startTrim, endPoint, 5);
 
         audioPlayer.play(mixBuffer, currentTime);
         setIsPlaying(true);
@@ -143,28 +167,20 @@ export default function Player() {
     setExportProgress(0);
 
     try {
-      // Renderiza o mix
       const audioBuffers = tracks
         .map((t) => t.audioBuffer)
         .filter((b) => b !== undefined) as AudioBuffer[];
 
       setExportProgress(50);
 
-      const mixBuffer = await renderMixToAudioBuffer(
-        audioBuffers,
-        startTrim,
-        endPoint,
-        5
-      );
+      const mixBuffer = await renderMixToAudioBuffer(audioBuffers, startTrim, endPoint, 5);
 
       setExportProgress(75);
 
-      // Exporta como MP3 (com fallback para WAV)
       const { blob, extension } = await exportAudioBuffer(mixBuffer, 'mp3');
 
       setExportProgress(100);
 
-      // Cria link de download
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -190,18 +206,33 @@ export default function Player() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const remainingTime = Math.max(0, totalDuration - currentTime);
   const progressPercent = totalDuration > 0 ? (currentTime / totalDuration) * 100 : 0;
 
   return (
-    <div className="bg-card border border-border rounded-lg p-6 space-y-4">
+    <div className="bg-card border border-border rounded p-6 space-y-6">
+      {/* Status Message */}
+      {isUpdating && (
+        <div className="bg-cyan-500/10 border border-cyan-500/30 rounded p-3 text-sm text-glow-cyan">
+          ⚡ Atualizando parâmetros...
+        </div>
+      )}
+
+      {/* Hero Section */}
+      <div className="space-y-2">
+        <h2 className="text-2xl font-bold text-glow-cyan flex items-center gap-2">
+          <Music size={28} />
+          Automix Studio
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Premium automix for in-salon ambience
+        </p>
+      </div>
+
       {/* Progress Bar */}
       <div className="space-y-2">
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>{formatTime(currentTime)}</span>
-          <span>{formatTime(totalDuration)}</span>
-        </div>
         <div
-          className="h-1 bg-muted rounded-full overflow-hidden cursor-pointer hover:h-2 transition-all"
+          className="h-2 bg-muted rounded-full overflow-hidden cursor-pointer hover:h-3 transition-all"
           onClick={(e) => {
             const rect = e.currentTarget.getBoundingClientRect();
             const percent = (e.clientX - rect.left) / rect.width;
@@ -209,18 +240,25 @@ export default function Player() {
           }}
         >
           <div
-            className="h-full bg-gradient-neon transition-all"
-            style={{ width: `${progressPercent}%` }}
+            className="h-full transition-all"
+            style={{
+              width: `${progressPercent}%`,
+              background: 'linear-gradient(90deg, #00d9ff 0%, #ff00ff 100%)',
+            }}
           />
+        </div>
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <span className="text-glow-cyan font-semibold">{formatTime(currentTime)}</span>
+          <span className="text-glow-magenta font-semibold">-{formatTime(remainingTime)}</span>
         </div>
       </div>
 
       {/* Main Controls */}
-      <div className="flex items-center justify-center gap-3">
+      <div className="flex items-center justify-center gap-4">
         <button
           onClick={handlePrevious}
           disabled={tracks.length === 0 || isExporting}
-          className="p-2 rounded-lg border border-border hover:border-cyan-400/50 text-foreground hover:bg-card transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          className="p-3 rounded-lg border border-border hover:border-cyan-400/50 text-foreground hover:bg-card transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           title="Faixa anterior"
         >
           <SkipBack size={20} />
@@ -228,8 +266,17 @@ export default function Player() {
 
         <button
           onClick={handlePlayPause}
-          disabled={tracks.length === 0 || !allTracksLoaded || isExporting}
-          className="p-3 rounded-lg bg-gradient-neon text-sidebar-primary-foreground hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all glow-cyan-hover"
+          disabled={tracks.length === 0 || !allTracksLoaded || isExporting || isUpdating}
+          className="p-4 rounded-lg border border-border text-foreground hover:border-cyan-400/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          style={
+            isPlaying || (!isPlaying && allTracksLoaded && tracks.length > 0)
+              ? {
+                  background: 'linear-gradient(135deg, #00d9ff 0%, #ff00ff 100%)',
+                  color: '#0a0a0a',
+                  borderColor: 'transparent',
+                }
+              : undefined
+          }
           title={isPlaying ? 'Pausar' : 'Reproduzir'}
         >
           {isPlaying ? <Pause size={24} /> : <Play size={24} />}
@@ -238,7 +285,7 @@ export default function Player() {
         <button
           onClick={handleNext}
           disabled={tracks.length === 0 || isExporting}
-          className="p-2 rounded-lg border border-border hover:border-cyan-400/50 text-foreground hover:bg-card transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          className="p-3 rounded-lg border border-border hover:border-cyan-400/50 text-foreground hover:bg-card transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           title="Próxima faixa"
         >
           <SkipForward size={20} />
@@ -246,42 +293,61 @@ export default function Player() {
       </div>
 
       {/* Secondary Controls */}
-      <div className="flex items-center justify-center gap-2">
-        <button
-          onClick={handleRepeat}
-          disabled={tracks.length === 0 || isExporting}
-          className={`p-2 rounded-lg border transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-            repeatMode === 'off'
-              ? 'border-border hover:border-cyan-400/50 text-foreground hover:bg-card'
-              : 'border-cyan-400 bg-cyan-400/10 text-cyan-400'
-          }`}
-          title={`Repeat: ${repeatMode}`}
-        >
-          {repeatMode === 'one' ? <Repeat1 size={18} /> : <Repeat size={18} />}
-        </button>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleRepeat}
+            disabled={tracks.length === 0 || isExporting}
+            className={`p-2 rounded-lg border transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+              repeatMode === 'off'
+                ? 'border-border hover:border-cyan-400/50 text-foreground hover:bg-card'
+                : 'border-cyan-400 bg-cyan-400/10 text-cyan-400'
+            }`}
+            title={`Repeat: ${repeatMode}`}
+          >
+            {repeatMode === 'one' ? <Repeat1 size={18} /> : <Repeat size={18} />}
+          </button>
 
-        <button
-          onClick={handleShuffle}
-          disabled={tracks.length === 0 || isExporting}
-          className={`p-2 rounded-lg border transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-            isShuffle
-              ? 'border-magenta-500 bg-magenta-500/10 text-magenta-500'
-              : 'border-border hover:border-cyan-400/50 text-foreground hover:bg-card'
-          }`}
-          style={
-            isShuffle
-              ? { borderColor: '#ff00ff', backgroundColor: 'rgba(255, 0, 255, 0.1)', color: '#ff00ff' }
-              : undefined
-          }
-          title="Shuffle"
-        >
-          <Shuffle size={18} />
-        </button>
+          <button
+            onClick={handleShuffle}
+            disabled={tracks.length === 0 || isExporting}
+            className={`p-2 rounded-lg border transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+              isShuffle
+                ? 'border-magenta-500 bg-magenta-500/10 text-magenta-500'
+                : 'border-border hover:border-cyan-400/50 text-foreground hover:bg-card'
+            }`}
+            style={
+              isShuffle
+                ? { borderColor: '#ff00ff', backgroundColor: 'rgba(255, 0, 255, 0.1)', color: '#ff00ff' }
+                : undefined
+            }
+            title="Shuffle"
+          >
+            <Shuffle size={18} />
+          </button>
+        </div>
+
+        {/* Volume Control */}
+        <div className="flex items-center gap-2">
+          <Volume2 size={18} className="text-muted-foreground" />
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.1"
+            value={volume}
+            onChange={(e) => setVolume(parseFloat(e.target.value))}
+            className="w-24"
+            style={{ accentColor: '#00d9ff' }}
+            title="Volume"
+          />
+          <span className="text-xs text-muted-foreground w-8">{Math.round(volume * 100)}%</span>
+        </div>
 
         <button
           onClick={handleExport}
           disabled={tracks.length === 0 || !allTracksLoaded || isExporting}
-          className="p-2 rounded-lg border border-border hover:border-magenta-500/50 text-foreground hover:bg-card transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 ml-auto"
+          className="p-2 rounded-lg border border-border hover:border-magenta-500/50 text-foreground hover:bg-card transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           title="Exportar como MP3/WAV"
         >
           <Download size={18} />
@@ -289,18 +355,40 @@ export default function Player() {
         </button>
       </div>
 
-      {/* Status */}
-      <div className="text-center text-xs text-muted-foreground">
-        {tracks.length === 0 ? (
-          <p>Nenhuma faixa carregada</p>
-        ) : !allTracksLoaded ? (
-          <p>Carregando faixas...</p>
-        ) : (
-          <p>
-            {tracks.length} faixa{tracks.length !== 1 ? 's' : ''} pronta{tracks.length !== 1 ? 's' : ''} |
-            Faixa {currentTrackIndex + 1} de {tracks.length}
-          </p>
+      {/* Status Info */}
+      <div className="bg-card border border-border rounded p-4 space-y-2">
+        <div className="text-xs text-muted-foreground">
+          {tracks.length === 0 ? (
+            <p>🎵 Your studio is quiet.</p>
+          ) : !allTracksLoaded ? (
+            <p>⏳ Decoding tracks locally...</p>
+          ) : (
+            <p>✓ Ready to mix</p>
+          )}
+        </div>
+        {tracks.length > 0 && (
+          <div className="text-xs text-muted-foreground">
+            <p>
+              {tracks.length} track{tracks.length !== 1 ? 's' : ''} • Faixa {currentTrackIndex + 1} de{' '}
+              {tracks.length}
+            </p>
+            <p>Decoded locally: {tracks.filter((t) => t.isLoaded).length}/{tracks.length}</p>
+          </div>
         )}
+      </div>
+
+      {/* Export Info */}
+      <div className="bg-card border border-border rounded p-4 space-y-2">
+        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <Download size={16} className="text-glow-magenta" />
+          Export
+        </h3>
+        <p className="text-xs text-muted-foreground">
+          Offline render: {(totalDuration || 0).toFixed(1)}s
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Export needs decoded audio buffers. Upload tracks in this session and keep this tab open.
+        </p>
       </div>
     </div>
   );
