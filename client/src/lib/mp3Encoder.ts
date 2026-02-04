@@ -169,24 +169,19 @@ export function audioBufferToWav(audioBuffer: AudioBuffer): Blob {
 }
 
 /**
- * Exporta AudioBuffer com escolha automática de formato
- * Tenta MP3 primeiro, fallback para WAV
+ * Exporta AudioBuffer em MP3 direto
  */
 export async function exportAudioBuffer(
   audioBuffer: AudioBuffer,
   format: 'mp3' | 'wav' = 'mp3'
 ): Promise<{ blob: Blob; mimeType: string; extension: string }> {
   if (format === 'mp3') {
-    try {
-      const blob = await audioBufferToMp3(audioBuffer);
-      return {
-        blob,
-        mimeType: 'audio/mpeg',
-        extension: 'mp3',
-      };
-    } catch (error) {
-      console.warn('Erro ao codificar MP3, usando WAV:', error);
-    }
+    const blob = await audioBufferToMp3(audioBuffer);
+    return {
+      blob,
+      mimeType: 'audio/mpeg',
+      extension: 'mp3',
+    };
   }
 
   const blob = audioBufferToWav(audioBuffer);

@@ -7,6 +7,7 @@ export interface Track {
   audioBuffer?: AudioBuffer;
   duration: number;
   isLoaded: boolean;
+  bpm?: number;
 }
 
 export interface AutomixState {
@@ -28,6 +29,7 @@ export interface AutomixState {
   clearTracks: () => void;
   setTrackAudioBuffer: (id: string, buffer: AudioBuffer) => void;
   setTrackLoaded: (id: string, isLoaded: boolean) => void;
+  setTrackBpm: (id: string, bpm: number) => void;
 
   // Timeline controls
   setStartTrim: (value: number) => void;
@@ -108,6 +110,14 @@ export const useAutomixStore = create<AutomixState>((set, get) => ({
     set((state) => ({
       tracks: state.tracks.map((track) =>
         track.id === id ? { ...track, isLoaded } : track
+      ),
+    }));
+  },
+
+  setTrackBpm: (id: string, bpm: number) => {
+    set((state) => ({
+      tracks: state.tracks.map((track) =>
+        track.id === id ? { ...track, bpm: Math.max(0, bpm) } : track
       ),
     }));
   },

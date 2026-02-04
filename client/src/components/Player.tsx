@@ -20,6 +20,7 @@ export default function Player() {
     tracks,
     startTrim,
     endPoint,
+    crossfadeDuration,
     isPlaying,
     currentTime,
     totalDuration,
@@ -42,6 +43,14 @@ export default function Player() {
   const updateTimeoutRef = useRef<number | null>(null);
 
   const allTracksLoaded = tracks.every((t) => t.isLoaded && t.audioBuffer);
+  const trackDuration = endPoint - startTrim;
+  const currentTrack = tracks[currentTrackIndex];
+  const nextTrack = currentTrackIndex < tracks.length - 1 ? tracks[currentTrackIndex + 1] : null;
+
+  // Calcula tempo dentro da música atual
+  const currentTrackTime = currentTime % (trackDuration || 1);
+  const currentTrackProgressPercent = trackDuration > 0 ? (currentTrackTime / trackDuration) * 100 : 0;
+  const playlistProgressPercent = totalDuration > 0 ? (currentTime / totalDuration) * 100 : 0;
 
   // Inicializa AudioPlayer
   useEffect(() => {
@@ -115,7 +124,7 @@ export default function Player() {
           .map((t) => t.audioBuffer)
           .filter((b) => b !== undefined) as AudioBuffer[];
 
-        const mixBuffer = await renderMixToAudioBuffer(audioBuffers, startTrim, endPoint, 5);
+        const mixBuffer = await renderMixToAudioBuffer(audioBuffers, startTrim, endPoint, crossfadeDuration);
 
         audioPlayer.play(mixBuffer, currentTime);
         setIsPlaying(true);
@@ -173,24 +182,24 @@ export default function Player() {
 
       setExportProgress(50);
 
-      const mixBuffer = await renderMixToAudioBuffer(audioBuffers, startTrim, endPoint, 5);
+      const mixBuffer = await renderMixToAudioBuffer(audioBuffers, startTrim, endPoint, crossfadeDuration);
 
       setExportProgress(75);
 
-      const { blob, extension } = await exportAudioBuffer(mixBuffer, 'mp3');
+      const { blob } = await exportAudioBuffer(mixBuffer, 'mp3');
 
       setExportProgress(100);
 
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `mesha-automix-${Date.now()}.${extension}`;
+      a.download = `mesha-automix-${Date.now()}.mp3`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      alert(`Mix exportado com sucesso em formato ${extension.toUpperCase()}!`);
+      alert('Mix exportado com sucesso em formato MP3!');
     } catch (error) {
       console.error('Erro ao exportar:', error);
       alert('Erro ao exportar o mix. Tente novamente.');
@@ -207,7 +216,6 @@ export default function Player() {
   };
 
   const remainingTime = Math.max(0, totalDuration - currentTime);
-  const progressPercent = totalDuration > 0 ? (currentTime / totalDuration) * 100 : 0;
 
   return (
     <div className="bg-card border border-border rounded p-6 space-y-6">
@@ -229,24 +237,62 @@ export default function Player() {
         </p>
       </div>
 
-      {/* Progress Bar */}
-      <div className="space-y-2">
-        <div
-          className="h-2 bg-muted rounded-full overflow-hidden cursor-pointer hover:h-3 transition-all"
-          onClick={(e) => {
-            const rect = e.currentTarget.getBoundingClientRect();
-            const percent = (e.clientX - rect.left) / rect.width;
-            setCurrentTime(percent * totalDuration);
-          }}
-        >
+      {/* Timeline Section */}
+      <div className="space-y-4">
+        {/* Playlist Timeline */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-semibold text-glow-cyan">
+              {currentTrack ? currentTrack.name : 'Nenhuma faixa'}
+            </label>
+            <span className="text-xs text-muted-foreground">{formatTime(currentTime)}</span>
+          </div>
           <div
-            className="h-full transition-all"
-            style={{
-              width: `${progressPercent}%`,
-              background: 'linear-gradient(90deg, #00d9ff 0%, #ff00ff 100%)',
+            className="h-2 bg-muted rounded-full overflow-hidden cursor-pointer hover:h-3 transition-all"
+            onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              const percent = (e.clientX - rect.left) / rect.width;
+              setCurrentTime(percent * totalDuration);
             }}
-          />
+          >
+            <div
+              className="h-full transition-all"
+              style={{
+                width: `${playlistProgressPercent}%`,
+                background: 'linear-gradient(90deg, #00d9ff 0%, #ff00ff 100%)',
+              }}
+            />
+          </div>
         </div>
+
+        {/* Current Track Timeline */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-semibold text-muted-foreground">
+              Música atual
+            </label>
+            <span className="text-xs text-muted-foreground">{formatTime(currentTrackTime)}</span>
+          </div>
+          <div
+            className="h-2 bg-muted rounded-full overflow-hidden cursor-pointer hover:h-3 transition-all"
+            onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              const percent = (e.clientX - rect.left) / rect.width;
+              const trackStartTime = currentTrackIndex * trackDuration;
+              setCurrentTime(trackStartTime + percent * trackDuration);
+            }}
+          >
+            <div
+              className="h-full transition-all"
+              style={{
+                width: `${currentTrackProgressPercent}%`,
+                background: 'linear-gradient(90deg, #00ff00 0%, #00d9ff 100%)',
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Time Display */}
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span className="text-glow-cyan font-semibold">{formatTime(currentTime)}</span>
           <span className="text-glow-magenta font-semibold">-{formatTime(remainingTime)}</span>
@@ -254,42 +300,51 @@ export default function Player() {
       </div>
 
       {/* Main Controls */}
-      <div className="flex items-center justify-center gap-4">
-        <button
-          onClick={handlePrevious}
-          disabled={tracks.length === 0 || isExporting}
-          className="p-3 rounded-lg border border-border hover:border-cyan-400/50 text-foreground hover:bg-card transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          title="Faixa anterior"
-        >
-          <SkipBack size={20} />
-        </button>
+      <div className="flex flex-col items-center gap-4">
+        <div className="flex items-center justify-center gap-4">
+          <button
+            onClick={handlePrevious}
+            disabled={tracks.length === 0 || isExporting}
+            className="p-3 rounded-lg border border-border hover:border-cyan-400/50 text-foreground hover:bg-card transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Faixa anterior"
+          >
+            <SkipBack size={20} />
+          </button>
 
-        <button
-          onClick={handlePlayPause}
-          disabled={tracks.length === 0 || !allTracksLoaded || isExporting || isUpdating}
-          className="p-4 rounded-lg border border-border text-foreground hover:border-cyan-400/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          style={
-            isPlaying || (!isPlaying && allTracksLoaded && tracks.length > 0)
-              ? {
-                  background: 'linear-gradient(135deg, #00d9ff 0%, #ff00ff 100%)',
-                  color: '#0a0a0a',
-                  borderColor: 'transparent',
-                }
-              : undefined
-          }
-          title={isPlaying ? 'Pausar' : 'Reproduzir'}
-        >
-          {isPlaying ? <Pause size={24} /> : <Play size={24} />}
-        </button>
+          <button
+            onClick={handlePlayPause}
+            disabled={tracks.length === 0 || !allTracksLoaded || isExporting || isUpdating}
+            className="p-4 rounded-lg border border-border text-foreground hover:border-cyan-400/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            style={
+              isPlaying || (!isPlaying && allTracksLoaded && tracks.length > 0)
+                ? {
+                    background: 'linear-gradient(135deg, #00d9ff 0%, #ff00ff 100%)',
+                    color: '#0a0a0a',
+                    borderColor: 'transparent',
+                  }
+                : undefined
+            }
+            title={isPlaying ? 'Pausar' : 'Reproduzir'}
+          >
+            {isPlaying ? <Pause size={24} /> : <Play size={24} />}
+          </button>
 
-        <button
-          onClick={handleNext}
-          disabled={tracks.length === 0 || isExporting}
-          className="p-3 rounded-lg border border-border hover:border-cyan-400/50 text-foreground hover:bg-card transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          title="Próxima faixa"
-        >
-          <SkipForward size={20} />
-        </button>
+          <button
+            onClick={handleNext}
+            disabled={tracks.length === 0 || isExporting}
+            className="p-3 rounded-lg border border-border hover:border-cyan-400/50 text-foreground hover:bg-card transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Próxima faixa"
+          >
+            <SkipForward size={20} />
+          </button>
+        </div>
+
+        {/* Next Track Info */}
+        {nextTrack && (
+          <div className="text-xs text-glow-magenta font-semibold">
+            Próxima: {nextTrack.name}
+          </div>
+        )}
       </div>
 
       {/* Secondary Controls */}
@@ -348,7 +403,7 @@ export default function Player() {
           onClick={handleExport}
           disabled={tracks.length === 0 || !allTracksLoaded || isExporting}
           className="p-2 rounded-lg border border-border hover:border-magenta-500/50 text-foreground hover:bg-card transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-          title="Exportar como MP3/WAV"
+          title="Exportar como MP3"
         >
           <Download size={18} />
           {isExporting && <span className="text-xs">{exportProgress}%</span>}
