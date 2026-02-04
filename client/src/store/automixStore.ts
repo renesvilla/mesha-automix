@@ -13,12 +13,14 @@ export interface AutomixState {
   tracks: Track[];
   startTrim: number;
   endPoint: number;
+  crossfadeDuration: number;
   isPlaying: boolean;
   currentTime: number;
   totalDuration: number;
   currentTrackIndex: number;
   repeatMode: 'off' | 'all' | 'one';
   isShuffle: boolean;
+  selectedTrackIds: Set<string>;
 
   // Track management
   addTracks: (files: File[]) => void;
@@ -30,6 +32,7 @@ export interface AutomixState {
   // Timeline controls
   setStartTrim: (value: number) => void;
   setEndPoint: (value: number) => void;
+  setCrossfadeDuration: (value: number) => void;
 
   // Playback controls
   setIsPlaying: (value: boolean) => void;
@@ -38,6 +41,13 @@ export interface AutomixState {
   setCurrentTrackIndex: (index: number) => void;
   setRepeatMode: (mode: 'off' | 'all' | 'one') => void;
   setShuffle: (value: boolean) => void;
+
+  // Track selection
+  toggleTrackSelection: (id: string) => void;
+  selectAllTracks: () => void;
+  clearSelection: () => void;
+  deleteSelectedTracks: () => void;
+  reorderTracks: (fromIndex: number, toIndex: number) => void;
 }
 
 const generateId = () => Math.random().toString(36).substring(2, 11);
@@ -46,12 +56,14 @@ export const useAutomixStore = create<AutomixState>((set, get) => ({
   tracks: [],
   startTrim: 0,
   endPoint: 180,
+  crossfadeDuration: 5,
   isPlaying: false,
   currentTime: 0,
   totalDuration: 0,
   currentTrackIndex: 0,
   repeatMode: 'off',
   isShuffle: false,
+  selectedTrackIds: new Set(),
 
   addTracks: (files: File[]) => {
     const newTracks: Track[] = files.map((file) => ({
@@ -77,7 +89,7 @@ export const useAutomixStore = create<AutomixState>((set, get) => ({
   },
 
   clearTracks: () => {
-    set({ tracks: [], currentTime: 0, currentTrackIndex: 0 });
+    set({ tracks: [], currentTime: 0, currentTrackIndex: 0, selectedTrackIds: new Set() });
     get().updateTotalDuration();
   },
 
@@ -110,6 +122,10 @@ export const useAutomixStore = create<AutomixState>((set, get) => ({
     get().updateTotalDuration();
   },
 
+  setCrossfadeDuration: (value: number) => {
+    set({ crossfadeDuration: Math.max(0, value) });
+  },
+
   setIsPlaying: (value: boolean) => {
     set({ isPlaying: value });
   },
@@ -135,5 +151,44 @@ export const useAutomixStore = create<AutomixState>((set, get) => ({
 
   setShuffle: (value: boolean) => {
     set({ isShuffle: value });
+  },
+
+  toggleTrackSelection: (id: string) => {
+    set((state) => {
+      const newSelection = new Set(state.selectedTrackIds);
+      if (newSelection.has(id)) {
+        newSelection.delete(id);
+      } else {
+        newSelection.add(id);
+      }
+      return { selectedTrackIds: newSelection };
+    });
+  },
+
+  selectAllTracks: () => {
+    set((state) => ({
+      selectedTrackIds: new Set(state.tracks.map((t) => t.id)),
+    }));
+  },
+
+  clearSelection: () => {
+    set({ selectedTrackIds: new Set() });
+  },
+
+  deleteSelectedTracks: () => {
+    set((state) => ({
+      tracks: state.tracks.filter((t) => !state.selectedTrackIds.has(t.id)),
+      selectedTrackIds: new Set(),
+    }));
+    get().updateTotalDuration();
+  },
+
+  reorderTracks: (fromIndex: number, toIndex: number) => {
+    set((state) => {
+      const newTracks = [...state.tracks];
+      const [movedTrack] = newTracks.splice(fromIndex, 1);
+      newTracks.splice(toIndex, 0, movedTrack);
+      return { tracks: newTracks };
+    });
   },
 }));
