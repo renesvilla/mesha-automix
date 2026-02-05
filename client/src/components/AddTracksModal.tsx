@@ -11,7 +11,6 @@ export default function AddTracksModal({ isOpen, onClose }: AddTracksModalProps)
   const { addTracks } = useAutomixStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [bpmValues, setBpmValues] = useState<Record<string, string>>({});
 
   if (!isOpen) return null;
 
@@ -22,28 +21,14 @@ export default function AddTracksModal({ isOpen, onClose }: AddTracksModalProps)
 
   const handleRemoveFile = (index: number) => {
     setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
-    const fileName = selectedFiles[index].name;
-    setBpmValues((prev) => {
-      const newBpm = { ...prev };
-      delete newBpm[fileName];
-      return newBpm;
-    });
   };
 
   const handleAddAll = () => {
     if (selectedFiles.length > 0) {
       addTracks(selectedFiles);
       setSelectedFiles([]);
-      setBpmValues({});
       onClose();
     }
-  };
-
-  const handleBpmChange = (fileName: string, value: string) => {
-    setBpmValues((prev) => ({
-      ...prev,
-      [fileName]: value,
-    }));
   };
 
   const formatFileSize = (bytes: number): string => {
@@ -110,12 +95,7 @@ export default function AddTracksModal({ isOpen, onClose }: AddTracksModalProps)
           )}
         </div>
 
-        {/* Tip */}
-        {selectedFiles.length > 0 && (
-          <div className="bg-cyan-500/10 border border-cyan-500/30 rounded p-3 text-sm text-cyan-300">
-            💡 Tip: Set BPM to improve smart transitions.
-          </div>
-        )}
+
 
         {/* Files List */}
         <div className="space-y-3">
@@ -130,14 +110,6 @@ export default function AddTracksModal({ isOpen, onClose }: AddTracksModalProps)
                   {file.type || 'audio/mpeg'} • {formatFileSize(file.size)}
                 </p>
               </div>
-
-              <input
-                type="text"
-                placeholder="BPM (optional)"
-                value={bpmValues[file.name] || ''}
-                onChange={(e) => handleBpmChange(file.name, e.target.value)}
-                className="w-32 px-3 py-2 rounded-lg bg-card border border-border text-foreground text-sm placeholder-muted-foreground focus:outline-none focus:border-cyan-400 transition-colors"
-              />
 
               <button
                 onClick={() => handleRemoveFile(index)}

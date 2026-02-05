@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useAutomixStore } from '@/store/automixStore';
 import { decodeAudioFile } from '@/lib/audioUtils';
-import { detectBPM } from '@/lib/bpmDetector';
 
 /**
  * Hook que gerencia o carregamento de arquivos de áudio
@@ -15,8 +14,6 @@ export function useAudioLoader() {
   const tracks = useAutomixStore((state) => state.tracks);
   const setTrackAudioBuffer = useAutomixStore((state) => state.setTrackAudioBuffer);
   const setTrackLoaded = useAutomixStore((state) => state.setTrackLoaded);
-  const setTrackOriginalBPM = useAutomixStore((state) => state.setTrackOriginalBPM);
-  const setTrackBpm = useAutomixStore((state) => state.setTrackBpm);
 
   // Rastreia IDs de faixas já processadas para evitar reprocessamento
   const processedTracksRef = useRef<Set<string>>(new Set());
@@ -41,18 +38,6 @@ export function useAudioLoader() {
       // Decodifica o arquivo
       decodeAudioFile(track.file)
         .then((buffer) => {
-          // Detecta BPM automaticamente
-          try {
-            const detectedBPM = detectBPM(buffer);
-            setTrackOriginalBPM(track.id, detectedBPM);
-            setTrackBpm(track.id, detectedBPM); // Define currentBPM = originalBPM por padrão
-          } catch (error) {
-            console.warn(`Erro ao detectar BPM para ${track.name}:`, error);
-            // Usa BPM padrão se detecção falhar
-            setTrackOriginalBPM(track.id, 120);
-            setTrackBpm(track.id, 120);
-          }
-          
           setTrackAudioBuffer(track.id, buffer);
           setTrackLoaded(track.id, true);
         })
@@ -69,5 +54,5 @@ export function useAudioLoader() {
         processedTracksRef.current.delete(id);
       }
     });
-  }, [tracks, setTrackAudioBuffer, setTrackLoaded, setTrackOriginalBPM, setTrackBpm]);
+  }, [tracks, setTrackAudioBuffer, setTrackLoaded]);
 }

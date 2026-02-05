@@ -152,12 +152,7 @@ export default function TrackList() {
                 </span>
                 <span>{track.duration.toFixed(2)}s</span>
               </div>
-              {/* BPM Badge */}
-              {track.currentBPM && (
-                <div className="mt-2 text-xs text-glow-magenta font-semibold">
-                  Current BPM: {track.currentBPM}
-                </div>
-              )}
+
             </div>
 
             {/* Duration Display */}
