@@ -7,7 +7,9 @@ export interface Track {
   audioBuffer?: AudioBuffer;
   duration: number;
   isLoaded: boolean;
-  bpm?: number;
+  originalBPM?: number; // BPM detectado automaticamente
+  currentBPM?: number;  // BPM atual (ajustável pelo usuário)
+  playbackRate?: number; // Taxa de reprodução (1.0 = normal)
 }
 
 export interface AutomixState {
@@ -30,6 +32,7 @@ export interface AutomixState {
   setTrackAudioBuffer: (id: string, buffer: AudioBuffer) => void;
   setTrackLoaded: (id: string, isLoaded: boolean) => void;
   setTrackBpm: (id: string, bpm: number) => void;
+  setTrackOriginalBPM: (id: string, bpm: number) => void;
 
   // Timeline controls
   setStartTrim: (value: number) => void;
@@ -115,11 +118,33 @@ export const useAutomixStore = create<AutomixState>((set, get) => ({
   },
 
   setTrackBpm: (id: string, bpm: number) => {
-    set((state) => ({
-      tracks: state.tracks.map((track) =>
-        track.id === id ? { ...track, bpm: Math.max(0, bpm) } : track
-      ),
-    }));
+    set((state) => {
+      const { calculatePlaybackRate } = require('@/lib/bpmDetector');
+      const track = state.tracks.find((t) => t.id === id);
+      const originalBPM = track?.originalBPM || 120;
+      const playbackRate = calculatePlaybackRate(originalBPM, Math.max(0, bpm));
+      
+      return {
+        tracks: state.tracks.map((t) =>
+          t.id === id ? { ...t, currentBPM: Math.max(0, bpm), playbackRate } : t
+        ),
+      };
+    });
+  },
+
+  setTrackOriginalBPM: (id: string, bpm: number) => {
+    set((state) => {
+      const { calculatePlaybackRate } = require('@/lib/bpmDetector');
+      const track = state.tracks.find((t) => t.id === id);
+      const currentBPM = track?.currentBPM || Math.max(0, bpm);
+      const playbackRate = calculatePlaybackRate(Math.max(0, bpm), currentBPM);
+      
+      return {
+        tracks: state.tracks.map((t) =>
+          t.id === id ? { ...t, originalBPM: Math.max(0, bpm), currentBPM, playbackRate } : t
+        ),
+      };
+    });
   },
 
   setStartTrim: (value: number) => {

@@ -43,14 +43,22 @@ export default function Player() {
   const updateTimeoutRef = useRef<number | null>(null);
 
   const allTracksLoaded = tracks.every((t) => t.isLoaded && t.audioBuffer);
-  const trackDuration = endPoint - startTrim;
+  const effectiveTrackDuration = Math.max(0, endPoint - startTrim);
   const currentTrack = tracks[currentTrackIndex];
   const nextTrack = currentTrackIndex < tracks.length - 1 ? tracks[currentTrackIndex + 1] : null;
 
-  // Calcula tempo dentro da música atual
-  const currentTrackTime = currentTime % (trackDuration || 1);
-  const currentTrackProgressPercent = trackDuration > 0 ? (currentTrackTime / trackDuration) * 100 : 0;
-  const playlistProgressPercent = totalDuration > 0 ? (currentTime / totalDuration) * 100 : 0;
+  // Calcula tempo relativo dentro da música atual (0 a effectiveTrackDuration)
+  const currentTrackRelativeTime = currentTime % (effectiveTrackDuration || 1);
+  
+  // Calcula percentual de progresso para Timeline 1 (Current Track)
+  const currentTrackProgressPercent = effectiveTrackDuration > 0 
+    ? (currentTrackRelativeTime / effectiveTrackDuration) * 100 
+    : 0;
+  
+  // Calcula percentual de progresso para Timeline 2 (Total Playlist)
+  const playlistProgressPercent = totalDuration > 0 
+    ? (currentTime / totalDuration) * 100 
+    : 0;
 
   // Inicializa AudioPlayer
   useEffect(() => {
@@ -78,7 +86,7 @@ export default function Player() {
         setIsUpdating(false);
       }, 1000);
     }
-  }, [startTrim, endPoint]);
+  }, [startTrim, endPoint, crossfadeDuration]);
 
   // Atualiza tempo de playback
   useEffect(() => {
@@ -124,7 +132,12 @@ export default function Player() {
           .map((t) => t.audioBuffer)
           .filter((b) => b !== undefined) as AudioBuffer[];
 
-        const mixBuffer = await renderMixToAudioBuffer(audioBuffers, startTrim, endPoint, crossfadeDuration);
+        const mixBuffer = await renderMixToAudioBuffer(
+          audioBuffers,
+          startTrim,
+          endPoint,
+          crossfadeDuration
+        );
 
         audioPlayer.play(mixBuffer, currentTime);
         setIsPlaying(true);
@@ -138,17 +151,17 @@ export default function Player() {
   const handlePrevious = () => {
     if (currentTrackIndex > 0) {
       setCurrentTrackIndex(currentTrackIndex - 1);
-      setCurrentTime(0);
+      setCurrentTime(currentTrackIndex * effectiveTrackDuration);
     } else if (repeatMode === 'all') {
       setCurrentTrackIndex(tracks.length - 1);
-      setCurrentTime(0);
+      setCurrentTime((tracks.length - 1) * effectiveTrackDuration);
     }
   };
 
   const handleNext = () => {
     if (currentTrackIndex < tracks.length - 1) {
       setCurrentTrackIndex(currentTrackIndex + 1);
-      setCurrentTime(0);
+      setCurrentTime((currentTrackIndex + 1) * effectiveTrackDuration);
     } else if (repeatMode === 'all') {
       setCurrentTrackIndex(0);
       setCurrentTime(0);
@@ -182,7 +195,12 @@ export default function Player() {
 
       setExportProgress(50);
 
-      const mixBuffer = await renderMixToAudioBuffer(audioBuffers, startTrim, endPoint, crossfadeDuration);
+      const mixBuffer = await renderMixToAudioBuffer(
+        audioBuffers,
+        startTrim,
+        endPoint,
+        crossfadeDuration
+      );
 
       setExportProgress(75);
 
@@ -237,65 +255,78 @@ export default function Player() {
         </p>
       </div>
 
-      {/* Timeline Section */}
-      <div className="space-y-4">
-        {/* Playlist Timeline */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <label className="text-xs font-semibold text-glow-cyan">
-              {currentTrack ? currentTrack.name : 'Nenhuma faixa'}
-            </label>
-            <span className="text-xs text-muted-foreground">{formatTime(currentTime)}</span>
-          </div>
-          <div
-            className="h-2 bg-muted rounded-full overflow-hidden cursor-pointer hover:h-3 transition-all"
-            onClick={(e) => {
-              const rect = e.currentTarget.getBoundingClientRect();
-              const percent = (e.clientX - rect.left) / rect.width;
-              setCurrentTime(percent * totalDuration);
-            }}
-          >
-            <div
-              className="h-full transition-all"
-              style={{
-                width: `${playlistProgressPercent}%`,
-                background: 'linear-gradient(90deg, #00d9ff 0%, #ff00ff 100%)',
-              }}
-            />
-          </div>
+      {/* Timeline 1: Current Track */}
+      <div className="space-y-3 p-4 bg-muted/30 rounded border border-border">
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-glow-cyan font-semibold">
+            {currentTrack ? currentTrack.name : 'Nenhuma faixa'}
+          </span>
+          <span className="text-muted-foreground">Now Playing</span>
+          <span className="text-glow-magenta font-semibold">
+            {formatTime(currentTime)}
+          </span>
         </div>
 
-        {/* Current Track Timeline */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <label className="text-xs font-semibold text-muted-foreground">
-              Música atual
-            </label>
-            <span className="text-xs text-muted-foreground">{formatTime(currentTrackTime)}</span>
-          </div>
+        {/* Progress Bar */}
+        <div
+          className="h-2 bg-muted rounded-full overflow-hidden cursor-pointer hover:h-3 transition-all"
+          onClick={(e) => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            const percent = (e.clientX - rect.left) / rect.width;
+            const trackStartTime = currentTrackIndex * effectiveTrackDuration;
+            setCurrentTime(trackStartTime + percent * effectiveTrackDuration);
+          }}
+        >
           <div
-            className="h-2 bg-muted rounded-full overflow-hidden cursor-pointer hover:h-3 transition-all"
-            onClick={(e) => {
-              const rect = e.currentTarget.getBoundingClientRect();
-              const percent = (e.clientX - rect.left) / rect.width;
-              const trackStartTime = currentTrackIndex * trackDuration;
-              setCurrentTime(trackStartTime + percent * trackDuration);
+            className="h-full transition-all"
+            style={{
+              width: `${currentTrackProgressPercent}%`,
+              background: 'linear-gradient(90deg, #00d9ff 0%, #ff00ff 100%)',
             }}
-          >
-            <div
-              className="h-full transition-all"
-              style={{
-                width: `${currentTrackProgressPercent}%`,
-                background: 'linear-gradient(90deg, #00ff00 0%, #00d9ff 100%)',
-              }}
-            />
-          </div>
+          />
         </div>
 
         {/* Time Display */}
         <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span className="text-glow-cyan font-semibold">{formatTime(currentTime)}</span>
-          <span className="text-glow-magenta font-semibold">-{formatTime(remainingTime)}</span>
+          <span>{formatTime(currentTrackRelativeTime)}</span>
+          <span>{formatTime(effectiveTrackDuration)}</span>
+        </div>
+      </div>
+
+      {/* Timeline 2: Total Playlist */}
+      <div className="space-y-3 p-4 bg-muted/30 rounded border border-border">
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-green-400 font-semibold">Total Playlist</span>
+          <span className="text-muted-foreground">
+            Track {currentTrackIndex + 1} / {tracks.length}
+          </span>
+          <span className="text-glow-cyan font-semibold">
+            {formatTime(currentTime)}
+          </span>
+        </div>
+
+        {/* Progress Bar */}
+        <div
+          className="h-2 bg-muted rounded-full overflow-hidden cursor-pointer hover:h-3 transition-all"
+          onClick={(e) => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            const percent = (e.clientX - rect.left) / rect.width;
+            setCurrentTime(percent * totalDuration);
+          }}
+        >
+          <div
+            className="h-full transition-all"
+            style={{
+              width: `${playlistProgressPercent}%`,
+              background: 'linear-gradient(90deg, #00ff00 0%, #00d9ff 100%)',
+            }}
+          />
+        </div>
+
+        {/* Time Display */}
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <span>{formatTime(currentTime)}</span>
+          <span>{formatTime(totalDuration)}</span>
         </div>
       </div>
 
