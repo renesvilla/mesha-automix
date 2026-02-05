@@ -41,9 +41,10 @@ export default function Player() {
   const [isUpdating, setIsUpdating] = useState(false);
   const playbackIntervalRef = useRef<number | null>(null);
   const updateTimeoutRef = useRef<number | null>(null);
+  const lastPlayStateRef = useRef<boolean>(false);
 
   const allTracksLoaded = tracks.every((t) => t.isLoaded && t.audioBuffer);
-  const effectiveTrackDuration = Math.max(0, endPoint - startTrim);
+  const effectiveTrackDuration = Math.max(0.1, endPoint - startTrim);
   const currentTrack = tracks[currentTrackIndex];
   const nextTrack = currentTrackIndex < tracks.length - 1 ? tracks[currentTrackIndex + 1] : null;
 
@@ -86,7 +87,7 @@ export default function Player() {
         setIsUpdating(false);
       }, 1000);
     }
-  }, [startTrim, endPoint, crossfadeDuration]);
+  }, [startTrim, endPoint, crossfadeDuration, isPlaying]);
 
   // Atualiza tempo de playback
   useEffect(() => {
@@ -95,17 +96,21 @@ export default function Player() {
         const time = audioPlayer.getCurrentTime();
         setCurrentTime(time);
 
+        // Verifica se atingiu o fim da playlist
         if (time >= totalDuration) {
           if (repeatMode === 'one') {
             setCurrentTime(0);
             audioPlayer.stop();
+            // Reinicia reprodução
             handlePlayPause();
           } else if (repeatMode === 'all') {
             setCurrentTime(0);
             setCurrentTrackIndex(0);
             audioPlayer.stop();
+            // Reinicia reprodução
             handlePlayPause();
           } else {
+            // Fim da playlist sem repeat
             setIsPlaying(false);
             audioPlayer.stop();
           }
@@ -118,7 +123,7 @@ export default function Player() {
         }
       };
     }
-  }, [isPlaying, audioPlayer, totalDuration, repeatMode, setIsPlaying, setCurrentTime, setCurrentTrackIndex]);
+  }, [isPlaying, audioPlayer, totalDuration, repeatMode]);
 
   const handlePlayPause = async () => {
     if (!audioPlayer || tracks.length === 0 || !allTracksLoaded) return;
@@ -126,6 +131,7 @@ export default function Player() {
     if (isPlaying) {
       audioPlayer.pause();
       setIsPlaying(false);
+      lastPlayStateRef.current = false;
     } else {
       try {
         const audioBuffers = tracks
@@ -141,30 +147,60 @@ export default function Player() {
 
         audioPlayer.play(mixBuffer, currentTime);
         setIsPlaying(true);
+        lastPlayStateRef.current = true;
       } catch (error) {
         console.error('Erro ao renderizar mix:', error);
         alert('Erro ao renderizar mix. Tente novamente.');
+        setIsPlaying(false);
       }
     }
   };
 
   const handlePrevious = () => {
     if (currentTrackIndex > 0) {
-      setCurrentTrackIndex(currentTrackIndex - 1);
-      setCurrentTime(currentTrackIndex * effectiveTrackDuration);
+      const newIndex = currentTrackIndex - 1;
+      setCurrentTrackIndex(newIndex);
+      // Calcula tempo absoluto: índice * duração + startTrim
+      const newTime = newIndex * effectiveTrackDuration;
+      setCurrentTime(newTime);
+      
+      // Se está tocando, para e reinicia
+      if (isPlaying && audioPlayer) {
+        audioPlayer.stop();
+        setIsPlaying(false);
+      }
     } else if (repeatMode === 'all') {
-      setCurrentTrackIndex(tracks.length - 1);
-      setCurrentTime((tracks.length - 1) * effectiveTrackDuration);
+      const newIndex = tracks.length - 1;
+      setCurrentTrackIndex(newIndex);
+      const newTime = newIndex * effectiveTrackDuration;
+      setCurrentTime(newTime);
+      
+      if (isPlaying && audioPlayer) {
+        audioPlayer.stop();
+        setIsPlaying(false);
+      }
     }
   };
 
   const handleNext = () => {
     if (currentTrackIndex < tracks.length - 1) {
-      setCurrentTrackIndex(currentTrackIndex + 1);
-      setCurrentTime((currentTrackIndex + 1) * effectiveTrackDuration);
+      const newIndex = currentTrackIndex + 1;
+      setCurrentTrackIndex(newIndex);
+      const newTime = newIndex * effectiveTrackDuration;
+      setCurrentTime(newTime);
+      
+      if (isPlaying && audioPlayer) {
+        audioPlayer.stop();
+        setIsPlaying(false);
+      }
     } else if (repeatMode === 'all') {
       setCurrentTrackIndex(0);
       setCurrentTime(0);
+      
+      if (isPlaying && audioPlayer) {
+        audioPlayer.stop();
+        setIsPlaying(false);
+      }
     }
   };
 
@@ -347,7 +383,7 @@ export default function Player() {
             disabled={tracks.length === 0 || !allTracksLoaded || isExporting || isUpdating}
             className="p-4 rounded-lg border border-border text-foreground hover:border-cyan-400/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             style={
-              isPlaying || (!isPlaying && allTracksLoaded && tracks.length > 0)
+              (isPlaying || (!isPlaying && allTracksLoaded && tracks.length > 0)) && currentTime < totalDuration
                 ? {
                     background: 'linear-gradient(135deg, #00d9ff 0%, #ff00ff 100%)',
                     color: '#0a0a0a',
@@ -357,7 +393,7 @@ export default function Player() {
             }
             title={isPlaying ? 'Pausar' : 'Reproduzir'}
           >
-            {isPlaying ? <Pause size={24} /> : <Play size={24} />}
+            {isPlaying && currentTime < totalDuration ? <Pause size={24} /> : <Play size={24} />}
           </button>
 
           <button
@@ -448,33 +484,14 @@ export default function Player() {
             <p>🎵 Your studio is quiet.</p>
           ) : !allTracksLoaded ? (
             <p>⏳ Decoding tracks locally...</p>
+          ) : isPlaying ? (
+            <p>▶️ Playing: {currentTrack?.name || 'Unknown'}</p>
+          ) : currentTime >= totalDuration ? (
+            <p>✅ Playlist finished</p>
           ) : (
-            <p>✓ Ready to mix</p>
+            <p>⏸️ Ready to play</p>
           )}
         </div>
-        {tracks.length > 0 && (
-          <div className="text-xs text-muted-foreground">
-            <p>
-              {tracks.length} track{tracks.length !== 1 ? 's' : ''} • Faixa {currentTrackIndex + 1} de{' '}
-              {tracks.length}
-            </p>
-            <p>Decoded locally: {tracks.filter((t) => t.isLoaded).length}/{tracks.length}</p>
-          </div>
-        )}
-      </div>
-
-      {/* Export Info */}
-      <div className="bg-card border border-border rounded p-4 space-y-2">
-        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-          <Download size={16} className="text-glow-magenta" />
-          Export
-        </h3>
-        <p className="text-xs text-muted-foreground">
-          Offline render: {(totalDuration || 0).toFixed(1)}s
-        </p>
-        <p className="text-xs text-muted-foreground">
-          Export needs decoded audio buffers. Upload tracks in this session and keep this tab open.
-        </p>
       </div>
     </div>
   );

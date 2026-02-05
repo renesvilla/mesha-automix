@@ -36,6 +36,10 @@ export default function Sidebar() {
     }));
   };
 
+  // Calcula o tempo máximo da música mais longa
+  const maxTrackDuration = tracks.length > 0 ? Math.max(...tracks.map((t) => t.duration)) : 0;
+  const maxEndPoint = Math.max(startTrim + 1, maxTrackDuration); // End Point não pode ser menor que startTrim + 1s
+  
   const trackDuration = endPoint - startTrim;
   const totalPlaylistDuration = trackDuration * tracks.length;
 
@@ -159,19 +163,19 @@ export default function Sidebar() {
                 </label>
                 <input
                   type="range"
-                  min="0"
-                  max="300"
+                  min={startTrim + 0.5}
+                  max={maxEndPoint}
                   step="0.5"
-                  value={endPoint}
+                  value={Math.min(endPoint, maxEndPoint)}
                   onChange={(e) => setEndPoint(parseFloat(e.target.value))}
                   className="w-full"
                   style={{ accentColor: '#ff00ff' }}
                 />
                 <div className="text-xs text-muted-foreground mt-1">
-                  {endPoint.toFixed(1)}s
+                  {Math.min(endPoint, maxEndPoint).toFixed(1)}s / {maxEndPoint.toFixed(1)}s
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Where each track begins its transition.
+                  Limited to longest track ({maxTrackDuration.toFixed(1)}s)
                 </p>
               </div>
 
