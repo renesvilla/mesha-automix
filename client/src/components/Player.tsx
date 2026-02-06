@@ -45,8 +45,13 @@ export default function Player() {
 
   const allTracksLoaded = tracks.every((t) => t.isLoaded && t.audioBuffer);
   const effectiveTrackDuration = Math.max(0.1, endPoint - startTrim);
-  const currentTrack = tracks[currentTrackIndex];
-  const nextTrack = currentTrackIndex < tracks.length - 1 ? tracks[currentTrackIndex + 1] : null;
+  
+  // Calcula qual é o índice da música atual baseado no tempo global
+  const calculatedTrackIndex = Math.floor(currentTime / effectiveTrackDuration);
+  const activeTrackIndex = Math.min(calculatedTrackIndex, tracks.length - 1);
+  
+  const currentTrack = tracks[activeTrackIndex];
+  const nextTrack = activeTrackIndex < tracks.length - 1 ? tracks[activeTrackIndex + 1] : null;
 
   // Calcula tempo relativo dentro da música atual (0 a effectiveTrackDuration)
   const currentTrackRelativeTime = currentTime % (effectiveTrackDuration || 1);
@@ -101,13 +106,11 @@ export default function Player() {
           if (repeatMode === 'one') {
             setCurrentTime(0);
             audioPlayer.stop();
-            // Reinicia reprodução
             handlePlayPause();
           } else if (repeatMode === 'all') {
             setCurrentTime(0);
             setCurrentTrackIndex(0);
             audioPlayer.stop();
-            // Reinicia reprodução
             handlePlayPause();
           } else {
             // Fim da playlist sem repeat
@@ -156,50 +159,103 @@ export default function Player() {
     }
   };
 
-  const handlePrevious = () => {
-    if (currentTrackIndex > 0) {
-      const newIndex = currentTrackIndex - 1;
-      setCurrentTrackIndex(newIndex);
-      // Calcula tempo absoluto: índice * duração + startTrim
-      const newTime = newIndex * effectiveTrackDuration;
+  const handlePrevious = async () => {
+    if (activeTrackIndex > 0) {
+      const newTime = (activeTrackIndex - 1) * effectiveTrackDuration;
       setCurrentTime(newTime);
+      setCurrentTrackIndex(activeTrackIndex - 1);
       
-      // Se está tocando, para e reinicia
+      // Se está tocando, renderiza novo mix e continua tocando com crossfade
       if (isPlaying && audioPlayer) {
-        audioPlayer.stop();
-        setIsPlaying(false);
+        try {
+          const audioBuffers = tracks
+            .map((t) => t.audioBuffer)
+            .filter((b) => b !== undefined) as AudioBuffer[];
+
+          const mixBuffer = await renderMixToAudioBuffer(
+            audioBuffers,
+            startTrim,
+            endPoint,
+            crossfadeDuration
+          );
+
+          audioPlayer.play(mixBuffer, newTime);
+        } catch (error) {
+          console.error('Erro ao renderizar mix:', error);
+        }
       }
     } else if (repeatMode === 'all') {
-      const newIndex = tracks.length - 1;
-      setCurrentTrackIndex(newIndex);
-      const newTime = newIndex * effectiveTrackDuration;
+      const newTime = (tracks.length - 1) * effectiveTrackDuration;
       setCurrentTime(newTime);
+      setCurrentTrackIndex(tracks.length - 1);
       
       if (isPlaying && audioPlayer) {
-        audioPlayer.stop();
-        setIsPlaying(false);
+        try {
+          const audioBuffers = tracks
+            .map((t) => t.audioBuffer)
+            .filter((b) => b !== undefined) as AudioBuffer[];
+
+          const mixBuffer = await renderMixToAudioBuffer(
+            audioBuffers,
+            startTrim,
+            endPoint,
+            crossfadeDuration
+          );
+
+          audioPlayer.play(mixBuffer, newTime);
+        } catch (error) {
+          console.error('Erro ao renderizar mix:', error);
+        }
       }
     }
   };
 
-  const handleNext = () => {
-    if (currentTrackIndex < tracks.length - 1) {
-      const newIndex = currentTrackIndex + 1;
-      setCurrentTrackIndex(newIndex);
-      const newTime = newIndex * effectiveTrackDuration;
+  const handleNext = async () => {
+    if (activeTrackIndex < tracks.length - 1) {
+      const newTime = (activeTrackIndex + 1) * effectiveTrackDuration;
       setCurrentTime(newTime);
+      setCurrentTrackIndex(activeTrackIndex + 1);
       
+      // Se está tocando, renderiza novo mix e continua tocando com crossfade
       if (isPlaying && audioPlayer) {
-        audioPlayer.stop();
-        setIsPlaying(false);
+        try {
+          const audioBuffers = tracks
+            .map((t) => t.audioBuffer)
+            .filter((b) => b !== undefined) as AudioBuffer[];
+
+          const mixBuffer = await renderMixToAudioBuffer(
+            audioBuffers,
+            startTrim,
+            endPoint,
+            crossfadeDuration
+          );
+
+          audioPlayer.play(mixBuffer, newTime);
+        } catch (error) {
+          console.error('Erro ao renderizar mix:', error);
+        }
       }
     } else if (repeatMode === 'all') {
-      setCurrentTrackIndex(0);
       setCurrentTime(0);
+      setCurrentTrackIndex(0);
       
       if (isPlaying && audioPlayer) {
-        audioPlayer.stop();
-        setIsPlaying(false);
+        try {
+          const audioBuffers = tracks
+            .map((t) => t.audioBuffer)
+            .filter((b) => b !== undefined) as AudioBuffer[];
+
+          const mixBuffer = await renderMixToAudioBuffer(
+            audioBuffers,
+            startTrim,
+            endPoint,
+            crossfadeDuration
+          );
+
+          audioPlayer.play(mixBuffer, 0);
+        } catch (error) {
+          console.error('Erro ao renderizar mix:', error);
+        }
       }
     }
   };
@@ -309,7 +365,7 @@ export default function Player() {
           onClick={(e) => {
             const rect = e.currentTarget.getBoundingClientRect();
             const percent = (e.clientX - rect.left) / rect.width;
-            const trackStartTime = currentTrackIndex * effectiveTrackDuration;
+            const trackStartTime = activeTrackIndex * effectiveTrackDuration;
             setCurrentTime(trackStartTime + percent * effectiveTrackDuration);
           }}
         >
@@ -323,9 +379,16 @@ export default function Player() {
         </div>
 
         {/* Time Display */}
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>{formatTime(currentTrackRelativeTime)}</span>
-          <span>{formatTime(effectiveTrackDuration)}</span>
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-glow-magenta">
+            {currentTrackRelativeTime > 0 ? formatTime(currentTrackRelativeTime) : ''}
+          </span>
+          <span className="text-muted-foreground">{formatTime(effectiveTrackDuration)}</span>
+        </div>
+
+        {/* Next Track Info - Repositionado abaixo da Timeline 1 */}
+        <div className="text-xs text-glow-magenta font-semibold pt-2">
+          {nextTrack ? `Próxima: ${nextTrack.name}` : 'Nenhuma próxima música'}
         </div>
       </div>
 
@@ -334,7 +397,7 @@ export default function Player() {
         <div className="flex items-center justify-between text-xs">
           <span className="text-green-400 font-semibold">Total Playlist</span>
           <span className="text-muted-foreground">
-            Track {currentTrackIndex + 1} / {tracks.length}
+            Track {activeTrackIndex + 1} / {tracks.length}
           </span>
           <span className="text-glow-cyan font-semibold">
             {formatTime(currentTime)}
@@ -360,9 +423,11 @@ export default function Player() {
         </div>
 
         {/* Time Display */}
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>{formatTime(currentTime)}</span>
-          <span>{formatTime(totalDuration)}</span>
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-glow-cyan">
+            {currentTime > 0 ? formatTime(currentTime) : ''}
+          </span>
+          <span className="text-muted-foreground">{formatTime(totalDuration)}</span>
         </div>
       </div>
 
@@ -405,13 +470,6 @@ export default function Player() {
             <SkipForward size={20} />
           </button>
         </div>
-
-        {/* Next Track Info */}
-        {nextTrack && (
-          <div className="text-xs text-glow-magenta font-semibold">
-            Próxima: {nextTrack.name}
-          </div>
-        )}
       </div>
 
       {/* Secondary Controls */}
