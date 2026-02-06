@@ -163,11 +163,16 @@ export default function Sidebar() {
                 </label>
                 <input
                   type="range"
-                  min={startTrim + 0.5}
+                  min="0.5"
                   max={maxEndPoint}
                   step="0.5"
-                  value={Math.min(endPoint, maxEndPoint)}
-                  onChange={(e) => setEndPoint(parseFloat(e.target.value))}
+                  value={endPoint}
+                  onChange={(e) => {
+                    const newEndPoint = parseFloat(e.target.value);
+                    if (newEndPoint > startTrim) {
+                      setEndPoint(newEndPoint);
+                    }
+                  }}
                   className="w-full"
                   style={{ accentColor: '#ff00ff' }}
                 />

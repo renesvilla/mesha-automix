@@ -41,14 +41,13 @@ export default function Player() {
   const [isUpdating, setIsUpdating] = useState(false);
   const playbackIntervalRef = useRef<number | null>(null);
   const updateTimeoutRef = useRef<number | null>(null);
-  const lastPlayStateRef = useRef<boolean>(false);
 
   const allTracksLoaded = tracks.every((t) => t.isLoaded && t.audioBuffer);
   const effectiveTrackDuration = Math.max(0.1, endPoint - startTrim);
   
   // Calcula qual é o índice da música atual baseado no tempo global
   const calculatedTrackIndex = Math.floor(currentTime / effectiveTrackDuration);
-  const activeTrackIndex = Math.min(calculatedTrackIndex, tracks.length - 1);
+  const activeTrackIndex = Math.min(calculatedTrackIndex, Math.max(0, tracks.length - 1));
   
   const currentTrack = tracks[activeTrackIndex];
   const nextTrack = activeTrackIndex < tracks.length - 1 ? tracks[activeTrackIndex + 1] : null;
@@ -134,7 +133,6 @@ export default function Player() {
     if (isPlaying) {
       audioPlayer.pause();
       setIsPlaying(false);
-      lastPlayStateRef.current = false;
     } else {
       try {
         const audioBuffers = tracks
@@ -150,7 +148,6 @@ export default function Player() {
 
         audioPlayer.play(mixBuffer, currentTime);
         setIsPlaying(true);
-        lastPlayStateRef.current = true;
       } catch (error) {
         console.error('Erro ao renderizar mix:', error);
         alert('Erro ao renderizar mix. Tente novamente.');
@@ -325,8 +322,6 @@ export default function Player() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const remainingTime = Math.max(0, totalDuration - currentTime);
-
   return (
     <div className="bg-card border border-border rounded p-6 space-y-6">
       {/* Status Message */}
@@ -336,7 +331,7 @@ export default function Player() {
         </div>
       )}
 
-      {/* Hero Section */}
+      {/* Header */}
       <div className="space-y-2">
         <h2 className="text-2xl font-bold text-glow-cyan flex items-center gap-2">
           <Music size={28} />
@@ -347,21 +342,18 @@ export default function Player() {
         </p>
       </div>
 
-      {/* Timeline 1: Current Track */}
-      <div className="space-y-3 p-4 bg-muted/30 rounded border border-border">
-        <div className="flex items-center justify-between text-xs">
+      {/* Timeline 1: Current Track - Simplified Layout */}
+      <div className="space-y-2 p-4 bg-muted/30 rounded border border-border">
+        <div className="flex items-center justify-between text-sm">
           <span className="text-glow-cyan font-semibold">
             {currentTrack ? currentTrack.name : 'Nenhuma faixa'}
           </span>
-          <span className="text-muted-foreground">Now Playing</span>
-          <span className="text-glow-magenta font-semibold">
-            {formatTime(currentTime)}
-          </span>
+          <span className="text-muted-foreground text-xs">Now Playing</span>
         </div>
 
         {/* Progress Bar */}
         <div
-          className="h-2 bg-muted rounded-full overflow-hidden cursor-pointer hover:h-3 transition-all"
+          className="h-3 bg-muted rounded-full overflow-hidden cursor-pointer hover:h-4 transition-all"
           onClick={(e) => {
             const rect = e.currentTarget.getBoundingClientRect();
             const percent = (e.clientX - rect.left) / rect.width;
@@ -380,33 +372,32 @@ export default function Player() {
 
         {/* Time Display */}
         <div className="flex items-center justify-between text-xs">
-          <span className="text-glow-magenta">
-            {currentTrackRelativeTime > 0 ? formatTime(currentTrackRelativeTime) : ''}
+          <span className="text-glow-magenta font-semibold">
+            {formatTime(currentTrackRelativeTime)}
           </span>
-          <span className="text-muted-foreground">{formatTime(effectiveTrackDuration)}</span>
+          <span className="text-glow-magenta font-semibold">
+            {formatTime(effectiveTrackDuration)}
+          </span>
         </div>
 
-        {/* Next Track Info - Repositionado abaixo da Timeline 1 */}
-        <div className="text-xs text-glow-magenta font-semibold pt-2">
+        {/* Next Track Info */}
+        <div className="text-xs text-glow-magenta font-semibold pt-1">
           {nextTrack ? `Próxima: ${nextTrack.name}` : 'Nenhuma próxima música'}
         </div>
       </div>
 
-      {/* Timeline 2: Total Playlist */}
-      <div className="space-y-3 p-4 bg-muted/30 rounded border border-border">
-        <div className="flex items-center justify-between text-xs">
+      {/* Timeline 2: Total Playlist - Simplified Layout */}
+      <div className="space-y-2 p-4 bg-muted/30 rounded border border-border">
+        <div className="flex items-center justify-between text-sm">
           <span className="text-green-400 font-semibold">Total Playlist</span>
-          <span className="text-muted-foreground">
+          <span className="text-muted-foreground text-xs">
             Track {activeTrackIndex + 1} / {tracks.length}
-          </span>
-          <span className="text-glow-cyan font-semibold">
-            {formatTime(currentTime)}
           </span>
         </div>
 
         {/* Progress Bar */}
         <div
-          className="h-2 bg-muted rounded-full overflow-hidden cursor-pointer hover:h-3 transition-all"
+          className="h-3 bg-muted rounded-full overflow-hidden cursor-pointer hover:h-4 transition-all"
           onClick={(e) => {
             const rect = e.currentTarget.getBoundingClientRect();
             const percent = (e.clientX - rect.left) / rect.width;
@@ -424,10 +415,12 @@ export default function Player() {
 
         {/* Time Display */}
         <div className="flex items-center justify-between text-xs">
-          <span className="text-glow-cyan">
-            {currentTime > 0 ? formatTime(currentTime) : ''}
+          <span className="text-glow-cyan font-semibold">
+            {formatTime(currentTime)}
           </span>
-          <span className="text-muted-foreground">{formatTime(totalDuration)}</span>
+          <span className="text-glow-cyan font-semibold">
+            {formatTime(totalDuration)}
+          </span>
         </div>
       </div>
 
