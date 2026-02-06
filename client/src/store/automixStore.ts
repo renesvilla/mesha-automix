@@ -23,6 +23,7 @@ export interface AutomixState {
   selectedTrackIds: Set<string>;
 
   // Track management
+  addTrack: (track: Omit<Track, 'file'> & { file?: File }) => void;
   addTracks: (files: File[]) => void;
   removeTrack: (id: string) => void;
   clearTracks: () => void;
@@ -64,6 +65,19 @@ export const useAutomixStore = create<AutomixState>((set, get) => ({
   repeatMode: 'off',
   isShuffle: false,
   selectedTrackIds: new Set(),
+
+  addTrack: (track) => {
+    const newTrack: Track = {
+      ...track,
+      file: track.file || new File([], track.name),
+    };
+
+    set((state) => ({
+      tracks: [...state.tracks, newTrack],
+    }));
+
+    get().updateTotalDuration();
+  },
 
   addTracks: (files: File[]) => {
     const newTracks: Track[] = files.map((file) => ({

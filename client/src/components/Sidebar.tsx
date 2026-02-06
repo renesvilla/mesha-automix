@@ -1,7 +1,6 @@
 import { useAutomixStore } from '@/store/automixStore';
 import { Upload, Trash2, Settings, Music, Sliders, Zap, ChevronDown } from 'lucide-react';
 import { useRef, useState } from 'react';
-import AddTracksModal from './AddTracksModal';
 
 export default function Sidebar() {
   const {
@@ -19,14 +18,13 @@ export default function Sidebar() {
   } = useAutomixStore();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     timeline: true,
     settings: true,
   });
 
   const handleUploadClick = () => {
-    setIsModalOpen(true);
+    fileInputRef.current?.click();
   };
 
   const toggleSection = (section: string) => {
@@ -259,7 +257,16 @@ export default function Sidebar() {
         </div>
       </aside>
 
-      <AddTracksModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        accept="audio/*"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          // Será implementado no Home.tsx
+        }}
+      />
     </>
   );
 }

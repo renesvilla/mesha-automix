@@ -2,6 +2,9 @@ import Sidebar from '@/components/Sidebar';
 import TrackList from '@/components/TrackList';
 import Player from '@/components/Player';
 import { useAudioLoader } from '@/hooks/useAudioLoader';
+import { useAutomixStore } from '@/store/automixStore';
+import { useState } from 'react';
+import { Upload } from 'lucide-react';
 
 /**
  * Design: Automix Studio - Premium Audio Mixer
@@ -12,9 +15,62 @@ import { useAudioLoader } from '@/hooks/useAudioLoader';
  */
 export default function Home() {
   useAudioLoader();
+  const { addTrack } = useAutomixStore();
+  const [isDragActive, setIsDragActive] = useState(false);
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragActive(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragActive(false);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragActive(false);
+
+    const files = Array.from(e.dataTransfer.files);
+    const audioFiles = files.filter((file) => file.type.startsWith('audio/'));
+
+    for (const file of audioFiles) {
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+        addTrack({
+          id: `${Date.now()}-${Math.random()}`,
+          name: file.name.replace(/\.[^/.]+$/, ''),
+          duration: audioBuffer.duration,
+          audioBuffer,
+          isLoaded: true,
+        });
+      } catch (error) {
+        console.error(`Erro ao carregar ${file.name}:`, error);
+        alert(`Erro ao carregar ${file.name}`);
+      }
+    }
+  };
 
   return (
-    <div className="flex h-screen bg-background">
+    <div
+      className="flex h-screen bg-background"
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
       {/* Sidebar Navigation */}
       <Sidebar />
 
@@ -38,9 +94,22 @@ export default function Home() {
               <span className="text-glow-magenta">magenta</span> transitions.
             </p>
             <p className="text-sm text-muted-foreground">
-              Upload tracks, set BPM, tune timeline sliders, then play and export — all via Web Audio API.
+              Drag & drop audio files or use the sidebar to upload. Then play and export — all via Web Audio API.
             </p>
           </section>
+
+          {/* Drag & Drop Zone */}
+          {isDragActive && (
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 pointer-events-none">
+              <div className="bg-card border-2 border-dashed border-glow-cyan rounded-lg p-12 text-center space-y-4">
+                <Upload size={48} className="text-glow-cyan mx-auto" />
+                <div>
+                  <p className="text-xl font-bold text-glow-cyan">Drop your audio files here</p>
+                  <p className="text-sm text-muted-foreground mt-2">MP3, WAV, OGG, and other formats supported</p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Player Section */}
           <section>
@@ -63,7 +132,7 @@ export default function Home() {
             </h3>
             <ul className="space-y-2 text-xs text-muted-foreground">
               <li>
-                <strong className="text-foreground">Upload:</strong> Add multiple audio files. They'll decode locally
+                <strong className="text-foreground">Upload:</strong> Drag & drop audio files directly or use the sidebar button. They'll decode locally
                 in your browser.
               </li>
               <li>
@@ -75,11 +144,11 @@ export default function Home() {
                 crossfade. Use Repeat and Shuffle for variations.
               </li>
               <li>
-                <strong className="text-foreground">Export:</strong> Download your mix as MP3 (or WAV fallback) for
+                <strong className="text-foreground">Export:</strong> Download your mix as MP3 for
                 use in your salon.
               </li>
               <li>
-                <strong className="text-foreground">Unlock audio with a click:</strong> (display policy)
+                <strong className="text-foreground">Organize:</strong> Drag tracks to reorder, click to select, Shift+Click for multiple selection.
               </li>
             </ul>
           </section>
