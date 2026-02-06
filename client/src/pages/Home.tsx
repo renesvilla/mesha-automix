@@ -2,9 +2,6 @@ import Sidebar from '@/components/Sidebar';
 import TrackList from '@/components/TrackList';
 import Player from '@/components/Player';
 import { useAudioLoader } from '@/hooks/useAudioLoader';
-import { useAutomixStore } from '@/store/automixStore';
-import { useState } from 'react';
-import { Upload } from 'lucide-react';
 
 /**
  * Design: Automix Studio - Premium Audio Mixer
@@ -15,62 +12,9 @@ import { Upload } from 'lucide-react';
  */
 export default function Home() {
   useAudioLoader();
-  const { addTrack } = useAutomixStore();
-  const [isDragActive, setIsDragActive] = useState(false);
-
-  const handleDragEnter = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragActive(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragActive(false);
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  };
-
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragActive(false);
-
-    const files = Array.from(e.dataTransfer.files);
-    const audioFiles = files.filter((file) => file.type.startsWith('audio/'));
-
-    for (const file of audioFiles) {
-      try {
-        const arrayBuffer = await file.arrayBuffer();
-        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-
-        addTrack({
-          id: `${Date.now()}-${Math.random()}`,
-          name: file.name.replace(/\.[^/.]+$/, ''),
-          duration: audioBuffer.duration,
-          audioBuffer,
-          isLoaded: true,
-        });
-      } catch (error) {
-        console.error(`Erro ao carregar ${file.name}:`, error);
-        alert(`Erro ao carregar ${file.name}`);
-      }
-    }
-  };
 
   return (
-    <div
-      className="flex h-screen bg-background"
-      onDragEnter={handleDragEnter}
-      onDragLeave={handleDragLeave}
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
-    >
+    <div className="flex h-screen bg-background">
       {/* Sidebar Navigation */}
       <Sidebar />
 
@@ -94,22 +38,9 @@ export default function Home() {
               <span className="text-glow-magenta">magenta</span> transitions.
             </p>
             <p className="text-sm text-muted-foreground">
-              Drag & drop audio files or use the sidebar to upload. Then play and export — all via Web Audio API.
+              Upload tracks via the sidebar, tune timeline sliders, then play and export — all via Web Audio API.
             </p>
           </section>
-
-          {/* Drag & Drop Zone */}
-          {isDragActive && (
-            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 pointer-events-none">
-              <div className="bg-card border-2 border-dashed border-glow-cyan rounded-lg p-12 text-center space-y-4">
-                <Upload size={48} className="text-glow-cyan mx-auto" />
-                <div>
-                  <p className="text-xl font-bold text-glow-cyan">Drop your audio files here</p>
-                  <p className="text-sm text-muted-foreground mt-2">MP3, WAV, OGG, and other formats supported</p>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Player Section */}
           <section>
@@ -132,8 +63,7 @@ export default function Home() {
             </h3>
             <ul className="space-y-2 text-xs text-muted-foreground">
               <li>
-                <strong className="text-foreground">Upload:</strong> Drag & drop audio files directly or use the sidebar button. They'll decode locally
-                in your browser.
+                <strong className="text-foreground">Upload:</strong> Click or drag & drop audio files in the "Add tracks" button on the sidebar. They'll decode locally in your browser.
               </li>
               <li>
                 <strong className="text-foreground">Timeline:</strong> Adjust Start Trim and End/Automix Point to

@@ -15,6 +15,7 @@ export default function Sidebar() {
     deleteSelectedTracks,
     selectedTrackIds,
     clearSelection,
+    addTrack,
   } = useAutomixStore();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -22,9 +23,66 @@ export default function Sidebar() {
     timeline: true,
     settings: true,
   });
+  const [isDragOverButton, setIsDragOverButton] = useState(false);
 
   const handleUploadClick = () => {
     fileInputRef.current?.click();
+  };
+
+  const handleFileSelect = async (files: FileList | null) => {
+    if (!files) return;
+
+    const audioFiles = Array.from(files).filter((file) => file.type.startsWith('audio/'));
+
+    for (const file of audioFiles) {
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+        addTrack({
+          id: `${Date.now()}-${Math.random()}`,
+          name: file.name.replace(/\.[^/.]+$/, ''),
+          duration: audioBuffer.duration,
+          audioBuffer,
+          isLoaded: true,
+        });
+      } catch (error) {
+        console.error(`Erro ao carregar ${file.name}:`, error);
+        alert(`Erro ao carregar ${file.name}`);
+      }
+    }
+
+    // Limpar input para permitir selecionar o mesmo arquivo novamente
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOverButton(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOverButton(false);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOverButton(false);
+
+    const files = e.dataTransfer.files;
+    handleFileSelect(files);
   };
 
   const toggleSection = (section: string) => {
@@ -36,7 +94,7 @@ export default function Sidebar() {
 
   // Calcula o tempo máximo da música mais longa
   const maxTrackDuration = tracks.length > 0 ? Math.max(...tracks.map((t) => t.duration)) : 0;
-  const maxEndPoint = Math.max(startTrim + 1, maxTrackDuration); // End Point não pode ser menor que startTrim + 1s
+  const maxEndPoint = Math.max(startTrim + 1, maxTrackDuration);
   
   const trackDuration = endPoint - startTrim;
   const totalPlaylistDuration = trackDuration * tracks.length;
@@ -71,19 +129,30 @@ export default function Sidebar() {
           </div>
         </div>
 
-        {/* Upload Section */}
+        {/* Upload Section - Com Drag & Drop */}
         <div className="p-4 border-b border-sidebar-border">
           <button
             onClick={handleUploadClick}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded font-semibold hover:shadow-lg transition-all"
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+            className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded font-semibold hover:shadow-lg transition-all border-2 ${
+              isDragOverButton
+                ? 'border-glow-cyan bg-cyan-500/10'
+                : 'border-transparent'
+            }`}
             style={{
-              background: 'linear-gradient(135deg, #00d9ff 0%, #ff00ff 100%)',
-              color: '#0a0a0a',
+              background: isDragOverButton ? 'rgba(0, 217, 255, 0.1)' : 'linear-gradient(135deg, #00d9ff 0%, #ff00ff 100%)',
+              color: isDragOverButton ? '#00d9ff' : '#0a0a0a',
             }}
           >
             <Upload size={18} />
-            Add tracks
+            {isDragOverButton ? 'Drop files here' : 'Add tracks'}
           </button>
+          <p className="text-xs text-muted-foreground mt-2 text-center">
+            Click or drag & drop audio files
+          </p>
         </div>
 
         {/* Stats Section */}
@@ -100,12 +169,14 @@ export default function Sidebar() {
           </div>
           <div className="bg-card border border-border rounded p-3">
             <p className="text-xs text-muted-foreground mb-1">Total mix length</p>
-            <p className="text-lg font-bold text-glow-green">{totalPlaylistDuration.toFixed(1)}s</p>
+            <p className="text-sm text-green-400 font-semibold">
+              {totalPlaylistDuration.toFixed(1)}s
+            </p>
           </div>
         </div>
 
         {/* Timeline Section */}
-        <div className="p-4 border-b border-sidebar-border space-y-4 flex-1">
+        <div className="p-4 border-b border-sidebar-border">
           <button
             onClick={() => toggleSection('timeline')}
             className="w-full flex items-center justify-between text-sm font-semibold text-foreground hover:text-glow-cyan transition-colors"
@@ -120,17 +191,8 @@ export default function Sidebar() {
             />
           </button>
 
-          {expandedSections.timeline && (
-            <div className="space-y-4">
-              {/* Track Duration Display */}
-              <div className="bg-card border border-border rounded p-3">
-                <p className="text-xs text-muted-foreground mb-1">Duration per track</p>
-                <p className="text-lg font-bold text-glow-cyan">{trackDuration.toFixed(1)}s</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  (End Point - Start Trim)
-                </p>
-              </div>
-
+          {expandedSections['timeline'] && (
+            <div className="mt-4 space-y-4">
               {/* Start Trim */}
               <div>
                 <label className="block text-xs font-semibold text-foreground mb-2">
@@ -224,9 +286,9 @@ export default function Sidebar() {
             />
           </button>
 
-          {expandedSections.settings && (
-            <div className="mt-4 space-y-2">
-              {selectedTrackIds.size > 0 && (
+          {expandedSections['settings'] && (
+            <div className="mt-4 space-y-3">
+              {tracks.length > 0 && selectedTrackIds.size > 0 && (
                 <button
                   onClick={() => {
                     deleteSelectedTracks();
@@ -235,7 +297,7 @@ export default function Sidebar() {
                   className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded text-sm text-destructive border border-destructive/30 hover:bg-destructive/10 transition-colors"
                 >
                   <Trash2 size={16} />
-                  Delete {selectedTrackIds.size} selected
+                  Delete selected ({selectedTrackIds.size})
                 </button>
               )}
               {tracks.length > 0 && (
@@ -257,15 +319,14 @@ export default function Sidebar() {
         </div>
       </aside>
 
+      {/* Hidden File Input */}
       <input
         ref={fileInputRef}
         type="file"
         multiple
         accept="audio/*"
         style={{ display: 'none' }}
-        onChange={(e) => {
-          // Será implementado no Home.tsx
-        }}
+        onChange={(e) => handleFileSelect(e.target.files)}
       />
     </>
   );
