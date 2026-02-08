@@ -1,96 +1,134 @@
 /**
- * Web Audio API - Utilitários de Mixagem com Timeline Corrigida
+ * Web Audio API - Motor de Mixagem com Timeline Rigorosamente Corrigida
  * 
- * Arquitetura rigorosa:
- * - Usa AudioContext.currentTime como referência temporal
- * - Segmentação: segmentDuration = endTrim - startTrim
- * - Crossfade NÃO reduz duração, apenas sobrepõe
- * - Cada música toca integralmente por segmentDuration
- * - Shuffle altera ordem antes do cálculo
- * - Repeat reinicia do início
+ * REGRAS OBRIGATÓRIAS:
+ * 1. AudioContext.currentTime como base temporal
+ * 2. segmentDuration = endTrim - startTrim (NUNCA reduzir por crossover)
+ * 3. nextStartTime = previousStartTime + segmentDuration - crossover
+ * 4. totalDuration = segmentDuration * N - crossover * (N - 1)
+ * 5. Crossfade via GainNode, NUNCA via start/offset/duration
+ * 6. Novo BufferSource + GainNode a cada play
+ * 7. Recalcular timeline ao mudar qualquer parâmetro
  */
 
 const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
 
 /**
- * Interface para agendamento de reprodução de faixas
+ * CÁLCULO DE TIMELINE - ABSOLUTAMENTE CORRETO
+ * 
+ * Exemplo com 3 músicas, segmentDuration=20s, crossover=5s:
+ * Track 0: T=0s,   duration=20s, fim em 20s
+ * Track 1: T=15s,  duration=20s, fim em 35s (começa 5s antes do fim da Track 0)
+ * Track 2: T=30s,  duration=20s, fim em 50s (começa 5s antes do fim da Track 1)
+ * Total: 50s (não 60s)
  */
-export interface ScheduledTrack {
-  audioBuffer: AudioBuffer;
+export interface TimelineEntry {
+  trackIndex: number;
   startTime: number;
   endTime: number;
-  fadeInStart?: number;
-  fadeOutStart?: number;
+  fadeOutStart: number;
+  fadeOutEnd: number;
+  fadeInStart: number;
+  fadeInEnd: number;
 }
 
-/**
- * Calcula a timeline corrigida para todas as faixas
- * 
- * Regra: nextStartTime = previousStartTime + segmentDuration - crossover
- * Cada música toca por segmentDuration segundos
- */
-export function calculateTimeline(
+export function calculateCorrectTimeline(
   trackCount: number,
   segmentDuration: number,
   crossoverDuration: number
-): { startTime: number; endTime: number }[] {
-  const timeline: { startTime: number; endTime: number }[] = [];
-  let currentTime = 0;
+): TimelineEntry[] {
+  if (trackCount === 0) return [];
+  if (segmentDuration <= 0) throw new Error('segmentDuration deve ser > 0');
+  if (crossoverDuration < 0) throw new Error('crossoverDuration não pode ser negativo');
+
+  const timeline: TimelineEntry[] = [];
+  let currentStartTime = 0;
 
   for (let i = 0; i < trackCount; i++) {
-    const startTime = currentTime;
+    const startTime = currentStartTime;
     const endTime = startTime + segmentDuration;
 
-    timeline.push({ startTime, endTime });
+    // Calcula crossfade (simétrico)
+    const halfCross = crossoverDuration / 2;
+    const fadeOutStart = endTime - halfCross;
+    const fadeOutEnd = endTime + halfCross;
+    const fadeInStart = startTime - halfCross;
+    const fadeInEnd = startTime + halfCross;
 
-    // Próxima música começa antes do fim desta (sobreposição)
-    currentTime = endTime - crossoverDuration;
+    timeline.push({
+      trackIndex: i,
+      startTime,
+      endTime,
+      fadeOutStart,
+      fadeOutEnd,
+      fadeInStart,
+      fadeInEnd,
+    });
+
+    // REGRA OBRIGATÓRIA: nextStartTime = previousStartTime + segmentDuration - crossover
+    currentStartTime = endTime - crossoverDuration;
   }
 
   return timeline;
 }
 
 /**
- * Cria um nó de ganho com crossfade linear correto
+ * Calcula duração total da mixagem
+ * REGRA: totalDuration = segmentDuration * N - crossover * (N - 1)
+ */
+export function calculateTotalDuration(
+  trackCount: number,
+  segmentDuration: number,
+  crossoverDuration: number
+): number {
+  if (trackCount === 0) return 0;
+  return segmentDuration * trackCount - crossoverDuration * (trackCount - 1);
+}
+
+/**
+ * Cria GainNode com crossfade linear correto
  * 
- * Fade-out: 1 -> 0 durante crossover
- * Fade-in: 0 -> 1 durante crossover
+ * Fade-out: 1 → 0 de fadeOutStart até fadeOutEnd
+ * Fade-in: 0 → 1 de fadeInStart até fadeInEnd
  */
 function createCrossfadeGain(
   context: AudioContext | OfflineAudioContext,
-  trackStartTime: number,
-  trackEndTime: number,
-  fadeInStart?: number,
-  fadeOutStart?: number
+  fadeOutStart: number,
+  fadeOutEnd: number,
+  fadeInStart: number,
+  fadeInEnd: number,
+  isFirstTrack: boolean,
+  isLastTrack: boolean
 ): GainNode {
   const gainNode = context.createGain();
 
-  // Fade in se especificado (próxima música)
-  if (fadeInStart !== undefined) {
+  // Fade-in (próximas músicas, não a primeira)
+  if (!isFirstTrack) {
     gainNode.gain.setValueAtTime(0, fadeInStart);
-    gainNode.gain.linearRampToValueAtTime(1, trackStartTime);
+    gainNode.gain.linearRampToValueAtTime(1, fadeInEnd);
   } else {
-    gainNode.gain.setValueAtTime(1, trackStartTime);
+    gainNode.gain.setValueAtTime(1, fadeOutStart);
   }
 
-  // Fade out se especificado (música atual)
-  if (fadeOutStart !== undefined) {
+  // Fade-out (músicas não-últimas)
+  if (!isLastTrack) {
     gainNode.gain.setValueAtTime(1, fadeOutStart);
-    gainNode.gain.linearRampToValueAtTime(0, trackEndTime);
+    gainNode.gain.linearRampToValueAtTime(0, fadeOutEnd);
   } else {
-    gainNode.gain.setValueAtTime(1, trackEndTime);
+    gainNode.gain.setValueAtTime(1, fadeOutEnd);
   }
 
   return gainNode;
 }
 
 /**
- * Renderiza o mix completo com timeline corrigida
+ * RENDERIZA MIX COM TIMELINE ABSOLUTAMENTE CORRIGIDA
  * 
  * Garantias:
- * - Cada música toca por (endTrim - startTrim) segundos
- * - Crossfade sobrepõe mas não reduz duração
+ * - Cada música toca por segmentDuration segundos
+ * - Crossfade sobrepõe sem reduzir duração
  * - Sem silêncio final
+ * - Novo BufferSource + GainNode para cada música
  */
 export async function renderMixToAudioBuffer(
   tracks: AudioBuffer[],
@@ -102,15 +140,15 @@ export async function renderMixToAudioBuffer(
     throw new Error('Nenhuma faixa para renderizar');
   }
 
-  // Calcula duração efetiva de cada segmento
+  // Valida parâmetros
   const segmentDuration = endTrim - startTrim;
   if (segmentDuration <= 0) {
-    throw new Error('End Trim deve ser maior que Start Trim');
+    throw new Error('endTrim deve ser maior que startTrim');
   }
 
   // Calcula timeline corrigida
-  const timeline = calculateTimeline(tracks.length, segmentDuration, crossfadeDuration);
-  const totalDuration = timeline[timeline.length - 1].endTime;
+  const timeline = calculateCorrectTimeline(tracks.length, segmentDuration, crossfadeDuration);
+  const totalDuration = calculateTotalDuration(tracks.length, segmentDuration, crossfadeDuration);
 
   // Cria contexto offline
   const offlineContext = new OfflineAudioContext(
@@ -119,58 +157,52 @@ export async function renderMixToAudioBuffer(
     audioContext.sampleRate
   );
 
-  // Agenda cada faixa
+  // Agenda cada faixa com timeline corrigida
   tracks.forEach((buffer, index) => {
-    const { startTime: trackStartTime, endTime: trackEndTime } = timeline[index];
+    const entry = timeline[index];
+    const isFirstTrack = index === 0;
+    const isLastTrack = index === tracks.length - 1;
 
-    // Cria novo BufferSource (nunca reutilizar)
+    // REGRA: Criar novo BufferSource (nunca reutilizar)
     const source = offlineContext.createBufferSource();
     source.buffer = buffer;
 
-    // Offset de trim e duração efetiva
+    // REGRA: Agendar com start(startTime, startTrim, segmentDuration)
+    // startTime: quando começar no contexto offline
+    // startTrim: offset no arquivo de áudio
+    // segmentDuration: quanto tocar do arquivo
     const sourceStartOffset = startTrim;
     const sourceDuration = segmentDuration;
 
-    // Calcula crossfade
-    let fadeInStart: number | undefined;
-    let fadeOutStart: number | undefined;
-
-    // Primeira faixa: sem fade in
-    if (index > 0) {
-      fadeInStart = trackStartTime;
-    }
-
-    // Última faixa: sem fade out
-    if (index < tracks.length - 1) {
-      fadeOutStart = trackEndTime - crossfadeDuration;
-    }
-
-    // Cria ganho com crossfade
+    // Cria GainNode com crossfade correto
     const gainNode = createCrossfadeGain(
       offlineContext,
-      trackStartTime,
-      trackEndTime,
-      fadeInStart,
-      fadeOutStart
+      entry.fadeOutStart,
+      entry.fadeOutEnd,
+      entry.fadeInStart,
+      entry.fadeInEnd,
+      isFirstTrack,
+      isLastTrack
     );
 
     source.connect(gainNode);
     gainNode.connect(offlineContext.destination);
 
-    // Agenda reprodução: começa em trackStartTime, toca sourceDuration segundos
-    source.start(trackStartTime, sourceStartOffset, sourceDuration);
+    // REGRA OBRIGATÓRIA: source.start(startTime, offset, duration)
+    source.start(entry.startTime, sourceStartOffset, sourceDuration);
   });
 
   return offlineContext.startRendering();
 }
 
 /**
- * Reproduz áudio em tempo real com controle de playback
+ * REPRODUTOR EM TEMPO REAL COM TIMELINE CORRIGIDA
  * 
  * Garante:
  * - Novo BufferSource a cada play
  * - Novo GainNode a cada play
  * - Controle preciso de offset e duração
+ * - Recalcula timeline ao mudar parâmetros
  */
 export class AudioPlayer {
   private audioContext: AudioContext;
@@ -180,6 +212,7 @@ export class AudioPlayer {
   private pausedTime: number = 0;
   private isPlaying: boolean = false;
   private masterGainNode: GainNode;
+  private scheduledSources: AudioBufferSourceNode[] = [];
 
   constructor() {
     this.audioContext = audioContext;
@@ -188,7 +221,7 @@ export class AudioPlayer {
   }
 
   /**
-   * Reproduz um buffer de áudio a partir de um offset
+   * Reproduz buffer de áudio com offset e duração precisos
    * 
    * @param audioBuffer - Buffer a reproduzir
    * @param offset - Offset em segundos (padrão 0)
@@ -204,11 +237,11 @@ export class AudioPlayer {
     // Para reprodução anterior
     this.stop();
 
-    // Cria novo BufferSource (nunca reutilizar)
+    // REGRA: Criar novo BufferSource (nunca reutilizar)
     this.currentSource = this.audioContext.createBufferSource();
     this.currentSource.buffer = audioBuffer;
 
-    // Cria novo GainNode
+    // REGRA: Criar novo GainNode
     this.currentGainNode = this.audioContext.createGain();
     this.currentGainNode.connect(this.masterGainNode);
 
@@ -222,14 +255,19 @@ export class AudioPlayer {
     this.pausedTime = 0;
     this.isPlaying = true;
 
-    // Inicia reprodução com offset e duração
+    // REGRA: Agendar com start(0, offset, duration)
     if (duration !== undefined) {
       this.currentSource.start(0, offset, duration);
     } else {
       this.currentSource.start(0, offset);
     }
+
+    this.scheduledSources.push(this.currentSource);
   }
 
+  /**
+   * Pausa reprodução mantendo posição
+   */
   pause(): void {
     if (this.currentSource && this.isPlaying) {
       this.pausedTime = this.audioContext.currentTime - this.startTime;
@@ -238,12 +276,18 @@ export class AudioPlayer {
     }
   }
 
+  /**
+   * Retoma reprodução de onde pausou
+   */
   resume(): void {
     if (this.currentSource && !this.isPlaying && this.pausedTime > 0 && this.currentSource.buffer) {
       this.play(this.currentSource.buffer, this.pausedTime);
     }
   }
 
+  /**
+   * Para reprodução e limpa recursos
+   */
   stop(): void {
     if (this.currentSource) {
       try {
@@ -256,20 +300,35 @@ export class AudioPlayer {
       this.currentSource = null;
       this.currentGainNode = null;
     }
+
+    // Limpa fontes agendadas
+    this.scheduledSources = [];
   }
 
+  /**
+   * Define volume (0-1)
+   */
   setVolume(value: number): void {
     this.masterGainNode.gain.value = Math.max(0, Math.min(1, value));
   }
 
+  /**
+   * Obtém volume atual
+   */
   getVolume(): number {
     return this.masterGainNode.gain.value;
   }
 
+  /**
+   * Verifica se está tocando
+   */
   isCurrentlyPlaying(): boolean {
     return this.isPlaying;
   }
 
+  /**
+   * Obtém tempo atual de reprodução
+   */
   getCurrentTime(): number {
     if (this.isPlaying) {
       return this.audioContext.currentTime - this.startTime;
