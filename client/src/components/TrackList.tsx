@@ -72,6 +72,11 @@ export default function TrackList() {
 
   return (
     <div className="bg-card border border-border rounded-lg overflow-hidden">
+      {/* SETOR D - PLAYLIST HEADER */}
+      <div className="bg-muted border-b border-border px-6 py-3 flex items-center gap-2">
+        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-green-400 text-background text-xs font-bold">D</span>
+        <span className="text-xs font-semibold text-muted-foreground">PLAYLIST LIBRARY</span>
+      </div>
       {/* Header */}
       <div className="bg-muted border-b border-border px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -139,7 +144,7 @@ export default function TrackList() {
             {/* Drag Handle */}
             <GripVertical size={18} className="text-muted-foreground flex-shrink-0" />
 
-            {/* Track Info */}
+             {/* Track Info */}
             <div className="flex-1 min-w-0">
               <h3 className="font-semibold text-foreground truncate">{track.name}</h3>
               <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
@@ -150,9 +155,9 @@ export default function TrackList() {
                     <span className="text-muted-foreground">Decoding...</span>
                   )}
                 </span>
-                <span>{track.duration.toFixed(2)}s</span>
+                <span>File: {track.duration.toFixed(2)}s</span>
+                <span className="text-glow-cyan font-semibold">Play: {trackDuration.toFixed(2)}s</span>
               </div>
-
             </div>
 
             {/* Duration Display */}

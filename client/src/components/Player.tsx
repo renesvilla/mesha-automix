@@ -16,6 +16,7 @@ import { AudioPlayer, renderMixToAudioBuffer } from '@/lib/audioUtils';
 import { exportAudioBuffer } from '@/lib/mp3Encoder';
 
 export default function Player() {
+  // SETOR C - PLAYER
   const {
     tracks,
     startTrim,
@@ -321,10 +322,13 @@ export default function Player() {
     const secs = Math.floor(seconds % 60);
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
-
   return (
-    <div className="bg-card border border-border rounded p-6 space-y-6">
-      {/* Status Message */}
+    <div className="space-y-6 p-6 bg-card border border-border rounded-lg">
+      {/* SETOR C - PLAYER HEADER */}
+      <div className="flex items-center gap-2 mb-4">
+        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-glow-magenta text-background text-xs font-bold">C</span>
+        <span className="text-xs font-semibold text-muted-foreground">PLAYER</span>
+      </div>     {/* Status Message */}
       {isUpdating && (
         <div className="bg-cyan-500/10 border border-cyan-500/30 rounded p-3 text-sm text-glow-cyan">
           ⚡ Atualizando parâmetros...

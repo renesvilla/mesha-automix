@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react';
 import { useAutomixStore } from '@/store/automixStore';
-import { decodeAudioFile } from '@/lib/audioUtils';
 
 /**
  * Hook que gerencia o carregamento de arquivos de áudio
@@ -36,12 +35,18 @@ export function useAudioLoader() {
       processedTracksRef.current.add(track.id);
 
       // Decodifica o arquivo
-      decodeAudioFile(track.file)
-        .then((buffer) => {
+      if (!track.file) return;
+      
+      track.file.arrayBuffer()
+        .then((arrayBuffer: ArrayBuffer) => {
+          const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+          return audioContext.decodeAudioData(arrayBuffer);
+        })
+        .then((buffer: AudioBuffer) => {
           setTrackAudioBuffer(track.id, buffer);
           setTrackLoaded(track.id, true);
         })
-        .catch((error) => {
+        .catch((error: any) => {
           console.error(`Erro ao decodificar ${track.name}:`, error);
           setTrackLoaded(track.id, false);
         });
@@ -54,5 +59,5 @@ export function useAudioLoader() {
         processedTracksRef.current.delete(id);
       }
     });
-  }, [tracks, setTrackAudioBuffer, setTrackLoaded]);
+  }, [tracks, setTrackAudioBuffer, setTrackLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 }

@@ -112,8 +112,12 @@ export default function Sidebar() {
           <p className="text-xs text-muted-foreground">Dark charcoal • Cyan & Magenta</p>
         </div>
 
-        {/* Workspace Info */}
+        {/* Workspace Info - SETOR A */}
         <div className="p-4 border-b border-sidebar-border space-y-3">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-glow-cyan text-background text-xs font-bold">A</span>
+            <span className="text-xs font-semibold text-muted-foreground">WORKSPACE</span>
+          </div>
           <div className="border-dashed-green p-3 rounded">
             <p className="text-xs text-muted-foreground mb-1">Workspace</p>
             <p className="text-sm font-semibold text-glow-cyan">Salon Mixroom</p>
@@ -175,13 +179,14 @@ export default function Sidebar() {
           </div>
         </div>
 
-        {/* Timeline Section */}
+        {/* Timeline Section - SETOR B */}
         <div className="p-4 border-b border-sidebar-border">
           <button
             onClick={() => toggleSection('timeline')}
             className="w-full flex items-center justify-between text-sm font-semibold text-foreground hover:text-glow-cyan transition-colors"
           >
             <span className="flex items-center gap-2">
+              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-glow-magenta text-background text-xs font-bold">B</span>
               <Sliders size={16} className="text-glow-cyan" />
               Timeline
             </span>
